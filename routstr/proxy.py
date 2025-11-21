@@ -154,6 +154,8 @@ async def proxy(
     request_body = await request.body()
     request_body_dict = parse_request_body_json(request_body, path)
 
+    print(f"Incoming request:\n{request.headers}\n{request_body_dict}")
+
     model_id = request_body_dict.get("model", "unknown")
 
     model_obj = get_model_instance(model_id)
@@ -209,6 +211,8 @@ async def proxy(
     headers = upstream.prepare_headers(dict(request.headers))
 
     # Forward to upstream and handle response
+    print(f"Original Forwarding request:\n{headers}\n{request_body}")
+
     response = await upstream.forward_request(
         request,
         path,
@@ -219,6 +223,8 @@ async def proxy(
         session,
         model_obj,
     )
+    print(f"Received response:\n{response.headers}\n{response}")
+
 
     if response.status_code != 200:
         await revert_pay_for_request(key, session, max_cost_for_model)

@@ -34,6 +34,8 @@ from ..payment.models import (
 from ..payment.price import sats_usd_price
 from ..wallet import recieve_token, send_token
 
+from ..core.web_search import search_and_scrape_web
+
 logger = get_logger(__name__)
 
 
@@ -657,7 +659,23 @@ class BaseUpstreamProvider:
         url = f"{self.base_url}/{path}"
 
         transformed_body = self.prepare_request_body(request_body, model_obj)
-
+        
+        # GITHAPPENS: I can insert WEB Data here
+        #TODO: Query building!
+        web_data = await search_and_scrape_web("what time is it in new zealand")
+        print("Web-result:", web_data)
+        try:
+            data = json.loads(transformed_body)
+            web_context = web_data.get("combined_summary", "No web data available")
+            print(web_context)
+            data["messages"].insert(0, {
+                "role": "system", 
+                "content": f"Web search context: {web_context}"
+            })
+            transformed_body = json.dumps(data).encode()
+            print(f"New Body: {transformed_body}")
+        except Exception as e:
+            logger.error(f"Failed to inject web data: {e}")
         logger.info(
             "Forwarding request to upstream",
             extra={
@@ -669,6 +687,7 @@ class BaseUpstreamProvider:
                 "has_request_body": request_body is not None,
             },
         )
+        print(f"New Forwarding request Body:\n{transformed_body}")
 
         client = httpx.AsyncClient(
             transport=httpx.AsyncHTTPTransport(retries=1),
