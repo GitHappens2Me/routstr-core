@@ -348,3 +348,89 @@ async def search_and_scrape_web(query: str, max_results: int = 5, max_scrape_url
     """
     manager = get_web_search_manager()
     return await manager.search_and_scrape_for_ai(query, max_results, max_scrape_urls)
+
+
+async def enhance_request_with_web_context(request_body: bytes, query: str = None) -> bytes:
+    """
+    Enhance AI request with web search context by injecting system message.
+    
+    This is the main public function that should be called from base.py
+    to add web search context to AI requests.
+    
+    Args:
+        request_body: The original request body as bytes
+        query: Optional search query. If None, will extract from user message
+        
+    Returns:
+        Enhanced request body with web context injected as bytes
+    """
+    try:
+        # Parse the request body
+        data = json.loads(request_body)
+        
+        # Extract query from user message if not provided
+        if query is None:
+            query = _extract_query_from_messages(data.get("messages", []))
+        
+        if not query:
+            logger.warning("No query found for web search enhancement")
+            return request_body
+        
+        # Perform web search and scraping
+        web_data = await search_and_scrape_web(query)
+        
+        # Create web context message
+        web_context = web_data.get("combined_summary", "No web data available")
+        web_message = {
+            "role": "system",
+            "content": f"Web search context: {web_context}"
+        }
+        
+        # Insert system message at the beginning
+        if "messages" in data:
+            data["messages"].insert(0, web_message)
+        
+        # Convert back to bytes
+        enhanced_body = json.dumps(data).encode()
+        
+        logger.info(
+            f"Enhanced request with web context",
+            extra={
+                "query": query,
+                "original_size": len(request_body),
+                "enhanced_size": len(enhanced_body),
+                "web_sources": web_data.get("metadata", {}).get("scraped_urls", 0)
+            }
+        )
+        
+        return enhanced_body
+        
+    except Exception as e:
+        logger.error(
+            f"Failed to enhance request with web context",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "query": query
+            }
+        )
+        return request_body
+
+
+def _extract_query_from_messages(messages: List[Dict[str, Any]]) -> str:
+    """
+    Extract search query from user messages.
+    
+    Args:
+        messages: List of message dictionaries
+        
+    Returns:
+        Extracted query string or empty string if not found
+    """
+    for message in messages:
+        if message.get("role") == "user":
+            content = message.get("content", "")
+            # Simple extraction - use the full user message as query
+            # Could be enhanced with NLP to extract the actual question
+            return content.strip()
+    return ""
