@@ -20,7 +20,9 @@ dependencies = [
     "nostr>=0.0.2",
     "mdurl==0.1.2",
     "pillow>=10",
+    "pydantic-settings",  #needed for pydantic v2 
 ]
+
 
 [dependency-groups]
 dev = [
@@ -36,6 +38,13 @@ dev = [
     "pytest-benchmark>=4.0.0",
     "routstr",
 ]
+
+[tool.uv]
+override-dependencies = [
+    "pydantic>=2.0",
+    "pydantic[v1]>=2.0"
+]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

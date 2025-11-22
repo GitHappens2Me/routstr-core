@@ -6,90 +6,91 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic.v1 import BaseModel, BaseSettings, Field
+from pydantic import BaseModel, Field
+from pydantic.functional_validators import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class Settings(BaseSettings):
-    class Config:
-        case_sensitive = True
+    # --- UPDATED CONFIGURATION ---
+    model_config = SettingsConfigDict(
+        case_sensitive=False, 
+        env_file='.env',
+        env_file_encoding='utf-8',
+        env_nested_delimiter='',
+        extra='ignore',
+    )
 
-        @classmethod
-        def parse_env_var(cls, field_name: str, raw_value: str) -> Any:  # type: ignore[override]
-            if field_name in {"cashu_mints", "cors_origins", "relays"}:
-                v = str(raw_value).strip()
-                if v == "":
-                    return []
-                return [p.strip() for p in v.split(",") if p.strip()]
-            return raw_value
-
+    # --- UPDATED FIELD DEFINITIONS ---
     # Core
-    upstream_base_url: str = Field(default="", env="UPSTREAM_BASE_URL")
-    upstream_api_key: str = Field(default="", env="UPSTREAM_API_KEY")
-    admin_password: str = Field(default="", env="ADMIN_PASSWORD")
+    upstream_base_url: str = Field(default="")
+    upstream_api_key: str = Field(default="")
+    admin_password: str = Field(default="")
 
     # Node info
-    name: str = Field(default="ARoutstrNode", env="NAME")
-    description: str = Field(default="A Routstr Node", env="DESCRIPTION")
-    npub: str = Field(default="", env="NPUB")
-    http_url: str = Field(default="", env="HTTP_URL")
-    onion_url: str = Field(default="", env="ONION_URL")
+    name: str = Field(default="ARoutstrNode")
+    description: str = Field(default="A Routstr Node")
+    npub: str = Field(default="")
+    http_url: str = Field(default="")
+    onion_url: str = Field(default="")
 
     # Cashu
-    cashu_mints: list[str] = Field(default_factory=list, env="CASHU_MINTS")
-    receive_ln_address: str = Field(default="", env="RECEIVE_LN_ADDRESS")
-    primary_mint: str = Field(default="", env="PRIMARY_MINT_URL")
-    primary_mint_unit: str = Field(default="sat", env="PRIMARY_MINT_UNIT")
+    cashu_mints: str = Field(default="")
+    receive_ln_address: str = Field(default="")
+    primary_mint: str = Field(default="")
+    primary_mint_unit: str = Field(default="sat")
 
     # Pricing
-    # Default behavior: derive pricing from MODELS
-    # If fixed_pricing is True -> use fixed_cost_per_request and ignore tokens
-    # If fixed_per_1k_* are set (non-zero) -> override model token pricing when model-based
-    fixed_pricing: bool = Field(default=False, env="FIXED_PRICING")
-    fixed_cost_per_request: int = Field(default=1, env="FIXED_COST_PER_REQUEST")
-    fixed_per_1k_input_tokens: int = Field(default=0, env="FIXED_PER_1K_INPUT_TOKENS")
-    fixed_per_1k_output_tokens: int = Field(default=0, env="FIXED_PER_1K_OUTPUT_TOKENS")
-    exchange_fee: float = Field(default=1.005, env="EXCHANGE_FEE")
-    upstream_provider_fee: float = Field(default=1.05, env="UPSTREAM_PROVIDER_FEE")
-    tolerance_percentage: float = Field(default=1.0, env="TOLERANCE_PERCENTAGE")
-    # Minimum per-request charge in millisatoshis when model pricing is free/zero
-    min_request_msat: int = Field(default=1, env="MIN_REQUEST_MSAT")
+    fixed_pricing: bool = Field(default=False)
+    fixed_cost_per_request: int = Field(default=1)
+    fixed_per_1k_input_tokens: int = Field(default=0)
+    fixed_per_1k_output_tokens: int = Field(default=0)
+    exchange_fee: float = Field(default=1.005)
+    upstream_provider_fee: float = Field(default=1.05)
+    tolerance_percentage: float = Field(default=1.0)
+    min_request_msat: int = Field(default=1)
 
     # Network
-    cors_origins: list[str] = Field(default_factory=lambda: ["*"], env="CORS_ORIGINS")
-    tor_proxy_url: str = Field(default="socks5://127.0.0.1:9050", env="TOR_PROXY_URL")
-    providers_refresh_interval_seconds: int = Field(
-        default=300, env="PROVIDERS_REFRESH_INTERVAL_SECONDS"
-    )
-    pricing_refresh_interval_seconds: int = Field(
-        default=120, env="PRICING_REFRESH_INTERVAL_SECONDS"
-    )
-    models_refresh_interval_seconds: int = Field(
-        default=360, env="MODELS_REFRESH_INTERVAL_SECONDS"
-    )
-    enable_pricing_refresh: bool = Field(default=True, env="ENABLE_PRICING_REFRESH")
-    enable_models_refresh: bool = Field(default=True, env="ENABLE_MODELS_REFRESH")
-    refund_cache_ttl_seconds: int = Field(default=3600, env="REFUND_CACHE_TTL_SECONDS")
+    cors_origins: list[str] = Field(default_factory=lambda: ["*"])
+    tor_proxy_url: str = Field(default="socks5://127.0.0.1:9050")
+    providers_refresh_interval_seconds: int = Field(default=300)
+    pricing_refresh_interval_seconds: int = Field(default=120)
+    models_refresh_interval_seconds: int = Field(default=360)
+    enable_pricing_refresh: bool = Field(default=True)
+    enable_models_refresh: bool = Field(default=True)
+    refund_cache_ttl_seconds: int = Field(default=3600)
 
     # Logging
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
-    enable_console_logging: bool = Field(default=True, env="ENABLE_CONSOLE_LOGGING")
+    log_level: str = Field(default="INFO")
+    enable_console_logging: bool = Field(default=True)
 
     # Other
-    chat_completions_api_version: str = Field(
-        default="", env="CHAT_COMPLETIONS_API_VERSION"
-    )
-    models_path: str = Field(default="models.json", env="MODELS_PATH")
-    source: str = Field(default="", env="SOURCE")
+    chat_completions_api_version: str = Field(default="")
+    models_path: str = Field(default="models.json")
+    source: str = Field(default="")
 
     # Secrets / optional runtime controls
-    provider_id: str = Field(default="", env="PROVIDER_ID")
-    nsec: str = Field(default="", env="NSEC")
+    provider_id: str = Field(default="")
+    nsec: str = Field(default="")
 
     # Discovery
-    relays: list[str] = Field(default_factory=list, env="RELAYS")
+    relays: list[str] = Field(default_factory=list)
 
-
+    @field_validator('cashu_mints', mode='before')
+    @classmethod
+    def parse_comma_separated_string(cls, v: Any) -> str:
+        """
+        Ensures the field is always a string.
+        The actual list conversion will happen where it's used.
+        """
+        if isinstance(v, list):
+            # If for some reason it's already a list, join it back into a string
+            return ",".join(v)
+        if isinstance(v, str):
+            return v.strip()
+        return ""
+    
 def _compute_primary_mint(cashu_mints: list[str]) -> str:
     return cashu_mints[0] if cashu_mints else "https://mint.minibits.cash/Bitcoin"
 
