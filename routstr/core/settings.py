@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     enable_console_logging: bool = Field(default=True, env="ENABLE_CONSOLE_LOGGING")
 
+    # Web Search
+    enable_web_search: bool = Field(default=False, env="ENABLE_WEB_SEARCH")
+    web_search_provider: str = Field(default="serper", env="WEB_SEARCH_PROVIDER")
+    web_scraper_provider: str = Field(default="generic", env="WEB_SCRAPER_PROVIDER")
+    serper_api_key: str = Field(default="", env="SERPER_API_KEY")
+    web_search_max_results: int = Field(default=5, env="WEB_SEARCH_MAX_RESULTS")
+    web_scrape_max_concurrent_urls: int = Field(default=10, env="WEB_SCRAPE_MAX_CONCURRENT_URLS")
+
     # Other
     chat_completions_api_version: str = Field(
         default="", env="CHAT_COMPLETIONS_API_VERSION"

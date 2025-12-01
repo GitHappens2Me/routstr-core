@@ -34,7 +34,7 @@ from ..payment.models import (
 from ..payment.price import sats_usd_price
 from ..wallet import recieve_token, send_token
 
-from ..core.web_search import enhance_request_with_web_context
+from ..websearch.WebManager import enhance_request_with_web_context
 
 logger = get_logger(__name__)
 
@@ -660,24 +660,33 @@ class BaseUpstreamProvider:
 
         transformed_body = self.prepare_request_body(request_body, model_obj)
 
-        # GITHAPPENS: I can insert WEB Data here
-        #TODO: Only add web if enabled
-        #TODO: transformed_body can be None, not a good place to inject the data
-        # Enhance request with web search context
-        transformed_body = await enhance_request_with_web_context(transformed_body)
-        print(f"Enhanced Body: {transformed_body}")
+        # Enhance request with web search context if enabled and request body exists
+        if transformed_body:
+            try:
+                from ..core.settings import settings
+                if settings.enable_web_search:
+                    transformed_body = await enhance_request_with_web_context(transformed_body)
+            except Exception as e:
+                logger.warning(
+                    "Failed to enhance request with web context",
+                    extra={
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "web_search_enabled": getattr(settings, 'enable_web_search', False),
+                    }
+                )
+
         logger.info(
-            "Forwarding request to upstream",
-            extra={
-                "url": url,
-                "method": request.method,
-                "path": path,
-                "key_hash": key.hashed_key[:8] + "...",
-                "key_balance": key.balance,
-                "has_request_body": request_body is not None,
-            },
-        )
-        print(f"New Forwarding request Body:\n{transformed_body}")
+                    "Forwarding request to upstream",
+                    extra={
+                        "url": url,
+                        "method": request.method,
+                        "path": path,
+                        "key_hash": key.hashed_key[:8] + "...",
+                        "key_balance": key.balance,
+                        "has_request_body": request_body is not None,
+                    },
+                )
 
         client = httpx.AsyncClient(
             transport=httpx.AsyncHTTPTransport(retries=1),
@@ -707,7 +716,6 @@ class BaseUpstreamProvider:
                     ),
                     stream=True,
                 )
-
             logger.info(
                 "Received upstream response",
                 extra={

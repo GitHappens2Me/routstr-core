@@ -223,7 +223,6 @@ async def proxy(
         session,
         model_obj,
     )
-    print(f"Received response:\n{response.headers}\n{response}")
 
 
     if response.status_code != 200:
