@@ -37,6 +37,7 @@ class WebSearchResult:
     published_date: Optional[str] = None
     relevance_score: float = 0.0
     content: Optional[str] = None
+    chunks: Optional[str] = None # Relevent Chunks as one string. LLM-Readable
 
 
 @dataclass
