@@ -531,6 +531,7 @@ class BaseUpstreamProvider:
         key: ApiKey,
         session: AsyncSession,
         deducted_max_cost: int,
+        web_search_executed: bool = False,
     ) -> Response:
         """Handle non-streaming chat completion responses with token usage tracking and cost adjustment.
 
@@ -554,6 +555,7 @@ class BaseUpstreamProvider:
 
         try:
             content = await response.aread()
+            #TODO: rename to repsonse_data, in line with auth/adjust_payment_for_tokens
             response_json = json.loads(content)
 
             logger.debug(
@@ -564,6 +566,10 @@ class BaseUpstreamProvider:
                     "has_usage": "usage" in response_json,
                 },
             )
+
+            #TODO: Better to always add the attribute for consistance (just set to False)
+            if web_search_executed:
+                response_json["web_search_executed"] = True
 
             cost_data = await adjust_payment_for_tokens(
                 key, response_json, session, deducted_max_cost
@@ -660,12 +666,15 @@ class BaseUpstreamProvider:
 
         transformed_body = self.prepare_request_body(request_body, model_obj)
 
-        # Enhance request with web search context if enabled and request body exists
+        #TODO: When is transformed_body none? 
         if transformed_body:
+            web_search_executed = False
+            # Enhance request with web search context if enabled
             try:
                 from ..core.settings import settings
                 if settings.enable_web_search:
                     transformed_body = await enhance_request_with_web_context(transformed_body)
+                    web_search_executed = True
             except Exception as e:
                 logger.warning(
                     "Failed to enhance request with web context",
@@ -783,7 +792,7 @@ class BaseUpstreamProvider:
                 elif response.status_code == 200:
                     try:
                         return await self.handle_non_streaming_chat_completion(
-                            response, key, session, max_cost_for_model
+                            response, key, session, max_cost_for_model, web_search_executed=web_search_executed
                         )
                     finally:
                         await response.aclose()

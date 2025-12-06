@@ -85,6 +85,8 @@ class Settings(BaseSettings):
     web_search_max_results: int = Field(default=5, env="WEB_SEARCH_MAX_RESULTS")
     web_scrape_max_concurrent_urls: int = Field(default=10, env="WEB_SCRAPE_MAX_CONCURRENT_URLS")
 
+    fixed_web_search_cost = int = Field(default=1000, env="FIXED_WEB_SEARCH_COST")
+
     # Chunking Configuration
     enable_chunking: bool = Field(default=True, env="ENABLE_CHUNKING")
     chunker_provider: str = Field(default="fixed", env="CHUNKER_PROVIDER")

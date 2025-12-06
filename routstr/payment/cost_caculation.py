@@ -53,6 +53,22 @@ async def calculate_cost(  # todo: can be sync
         output_msats=0,
         total_msats=max_cost,
     )
+     # Get web search cost (model-specific or fixed)
+     #TODO_ refactor and test
+    if response_data.get("web_search_executed"):
+        if not settings.fixed_pricing and response_data.get("model"):
+            from ..proxy import get_model_instance
+            model_obj = get_model_instance(response_data["model"])
+            if model_obj and model_obj.sats_pricing and hasattr(model_obj.sats_pricing, 'web_search'):
+                web_search_cost = int(model_obj.sats_pricing.web_search * 1_000)
+            else:
+                web_search_cost = int(settings.fixed_web_search_cost)
+        else:
+            web_search_cost = int(settings.fixed_web_search_cost)
+        
+        cost_data.base_msats += web_search_cost
+        cost_data.total_msats += web_search_cost
+
 
     if "usage" not in response_data or response_data["usage"] is None:
         logger.warning(
@@ -136,13 +152,15 @@ async def calculate_cost(  # todo: can be sync
     output_msats = round(output_tokens / 1000 * MSATS_PER_1K_OUTPUT_TOKENS, 3)
     token_based_cost = math.ceil(input_msats + output_msats)
 
+    
     print("input_tokens:", input_tokens,
             "output_tokens:", output_tokens,
             "input_cost_msats:", input_msats,
             "output_cost_msats:", output_msats,
             "total_cost_msats:", token_based_cost,
+            "MSATS_PER_1K_INPUT_TOKENS", MSATS_PER_1K_INPUT_TOKENS,
+            "MSATS_PER_1K_OUTPUT_TOKENS", MSATS_PER_1K_OUTPUT_TOKENS,
             "model:", response_data.get("model", "unknown"))
-
 
     logger.info(
         "Calculated token-based cost",
@@ -156,6 +174,7 @@ async def calculate_cost(  # todo: can be sync
         },
     )  
     
+    #TODO: Understand this and do i need to do base_msats=web_cost
     return CostData(
         base_msats=0,
         input_msats=int(input_msats),
