@@ -136,6 +136,14 @@ async def calculate_cost(  # todo: can be sync
     output_msats = round(output_tokens / 1000 * MSATS_PER_1K_OUTPUT_TOKENS, 3)
     token_based_cost = math.ceil(input_msats + output_msats)
 
+    print("input_tokens:", input_tokens,
+            "output_tokens:", output_tokens,
+            "input_cost_msats:", input_msats,
+            "output_cost_msats:", output_msats,
+            "total_cost_msats:", token_based_cost,
+            "model:", response_data.get("model", "unknown"))
+
+
     logger.info(
         "Calculated token-based cost",
         extra={
@@ -146,8 +154,8 @@ async def calculate_cost(  # todo: can be sync
             "total_cost_msats": token_based_cost,
             "model": response_data.get("model", "unknown"),
         },
-    )
-
+    )  
+    
     return CostData(
         base_msats=0,
         input_msats=int(input_msats),

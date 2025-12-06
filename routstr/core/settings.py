@@ -75,8 +75,9 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     enable_console_logging: bool = Field(default=True, env="ENABLE_CONSOLE_LOGGING")
 
-    # Web Search
+    # Web Search / RAG
     enable_web_search: bool = Field(default=False, env="ENABLE_WEB_SEARCH")
+    rag_provider: str = Field(default="", env="RAG_PROVIDER")
     web_search_provider: str = Field(default="serper", env="WEB_SEARCH_PROVIDER")
     web_scraper_provider: str = Field(default="generic", env="WEB_SCRAPER_PROVIDER")
     serper_api_key: str = Field(default="", env="SERPER_API_KEY")

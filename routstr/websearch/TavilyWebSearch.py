@@ -42,7 +42,7 @@ class TavilyWebSearch(BaseWebSearch):
             raise ValueError("Tavily API key cannot be empty.")
         self.api_key = api_key
         
-        logger.info(f"TavilyWebSearch initialized with API key. Tavily provides all-in-one RAG functionality.")
+        logger.info(f"TavilyWebSearch initialized.")
 
     async def search(self, query: str, max_results: int = 10) -> WebSearchResponse:
         """
@@ -53,53 +53,11 @@ class TavilyWebSearch(BaseWebSearch):
         logger.info(f"Performing Tavily API search for: '{query}'")
 
         try:
-            # --- MOCK DATA FOR TESTING (saves credits) ---
-            # This will use the local file instead of making live API calls
-            logger.debug("Using mock data from 'tavily_trump-peace-deal.json'.")
-            from pathlib import Path
-            script_dir = Path(__file__).parent
-            json_file_path = script_dir / 'tavily_trump-peace-deal.json'
-            with open(json_file_path, 'r', encoding='utf-8') as file:
-                api_response = json.load(file)
+            # --- MOCK DATA FOR TESTING  ---
+            api_response = await self._load_mock_data()
             # ---------------------------------------------------------------
-            
-            # --- UNCOMMENT THE BLOCK BELOW FOR LIVE API CALLS ---
-            # # Prepare Tavily API request
-            # conn = http.client.HTTPSConnection("api.tavily.com")
-            #
-            # # Tavily request payload with all-in-one RAG parameters
-            # payload = {
-            #     "api_key": self.api_key,
-            #     "query": query,
-            #     "search_depth": "advanced",  # Use advanced to get chunks functionality
-            #     "include_images": False,  # We don't need images for RAG
-            #     "include_raw_content": False,  # We'll use chunks instead of raw content
-            #     "max_results": min(max_results, 10),  # Tavily max is 10
-            #     "include_domains": None,
-            #     "exclude_domains": None,
-            #     "days": None,  # No time limit by default
-            #     "chunks_per_source": 3  # Get 3 chunks per source for focused content
-            # }
-            #
-            # headers = {
-            #     'Content-Type': 'application/json',
-            #     'Authorization': f'Bearer {self.api_key}'
-            # }
-            #
-            # # Make the API request
-            # conn.request("POST", "/search", json.dumps(payload), headers)
-            # res = conn.getresponse()
-            # data = res.read()
-            # conn.close()
-            #
-            # # Parse the response
-            # api_response = json.loads(data.decode("utf-8"))
-            #
-            # if res.status != 200:
-            #     error_msg = api_response.get('error', f'Tavily API returned status {res.status}')
-            #     logger.error(f"Tavily API error: {error_msg}")
-            #     raise Exception(f"Tavily API error: {error_msg}")
-            # -----------------------------------------------------------------
+            # api_response = await self._call_tavily_api(query, max_results)
+            # ---------------------------------------------------------------
 
             # Parse the results from Tavily response
             tavily_results = api_response.get('results', [])
@@ -156,3 +114,71 @@ class TavilyWebSearch(BaseWebSearch):
             error_msg = f"Failed to get or process Tavily API response for query '{query}': {e}"
             logger.error(error_msg)
             raise Exception(error_msg)
+
+    async def call_tavily_api(self, query: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Make a live API call to Tavily search service.
+        
+        Args:
+            query: The search query
+            max_results: Maximum number of results to return
+            
+        Returns:
+            Dictionary containing the API response
+            
+        Raises:
+            Exception: If API call fails or returns non-200 status
+        """
+        logger.info(f"Making live Tavily API call for: '{query}'")
+        
+        # Prepare Tavily API request
+        conn = http.client.HTTPSConnection("api.tavily.com")
+        
+        # Tavily request payload with all-in-one RAG parameters
+        payload = {
+            "api_key": self.api_key,
+            "query": query,
+            "search_depth": "advanced",  # Use advanced to get chunks functionality
+            "include_images": False,  # We don't need images for RAG
+            "include_raw_content": False,  # We'll use chunks instead of raw content
+            "max_results": min(max_results, 10),  # Tavily max is 10
+            "include_domains": None,
+            "exclude_domains": None,
+            "days": None,  # No time limit by default
+            "chunks_per_source": 3  # Get 3 chunks per source for focused content
+        }
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.api_key}'
+        }
+        
+        # Make the API request
+        conn.request("POST", "/search", json.dumps(payload), headers)
+        res = conn.getresponse()
+        data = res.read()
+        conn.close()
+        
+        # Parse the response
+        api_response = json.loads(data.decode("utf-8"))
+        
+        if res.status != 200:
+            error_msg = api_response.get('error', f'Tavily API returned status {res.status}')
+            logger.error(f"Tavily API error: {error_msg}")
+            raise Exception(f"Tavily API error: {error_msg}")
+            
+        return api_response
+
+    async def _load_mock_data(self) -> Dict[str, Any]:
+        """
+        Load mock data from local JSON file for testing purposes.
+        
+        Returns:
+            Dictionary containing mock API response
+        """
+        logger.debug("Using mock data from 'tavily_trump-peace-deal.json'.")
+        from pathlib import Path
+        script_dir = Path(__file__).parent
+        json_file_path = script_dir / 'tavily_trump-peace-deal.json'
+        with open(json_file_path, 'r', encoding='utf-8') as file:
+            return json.load(file)

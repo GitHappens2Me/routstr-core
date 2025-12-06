@@ -10,20 +10,20 @@ logger = get_logger(__name__)
 
 
 
-def get_web_search_provider():
+def get_rag_provider():
     """
-    Get web search provider based on configuration.
+    Get RAG provider based on RAG_PROVIDER configuration.
+    This only returns true all-in-one RAG providers (like Tavily).
     
     Returns:
-        Web search provider instance or None if not available
+        RAG provider instance or None if not available
     """
-    #TODO: Test what happens if env variable does not exist
-    provider_name = settings.web_search_provider.lower()
+    if not settings.rag_provider:
+        logger.debug("No RAG_PROVIDER configured")
+        return None
     
-    # Auto-detection: If only Tavily API key is set, default to Tavily
-    if provider_name == "serper" and not settings.serper_api_key and settings.tavily_api_key:
-        logger.info("Auto-detecting Tavily provider (API key found, Serper key missing)")
-        provider_name = "tavily"
+    provider_name = settings.rag_provider.lower()
+    logger.info(f"Checking configured RAG provider: {provider_name}")
     
     if provider_name == "tavily":
         try:
@@ -36,21 +36,42 @@ def get_web_search_provider():
         except ImportError as e:
             logger.error(f"Failed to import TavilyWebSearch: {e}")
             return None
-    elif provider_name == "serper":
+    else:
+        logger.error(f"Unknown RAG provider: {provider_name}")
+        return None
+
+
+def get_web_search_provider():
+    """
+    Get web search provider based on WEB_SEARCH_PROVIDER configuration.
+    This only returns web search providers (like Serper), not RAG providers.
+    
+    Returns:
+        Web search provider instance or None if not available
+    """
+    if not settings.web_search_provider:
+        logger.debug("No WEB_SEARCH_PROVIDER configured")
+        return None
+    
+    provider_name = settings.web_search_provider.lower()
+    logger.info(f"Checking configured web search provider: {provider_name}")
+    
+    if provider_name == "serper":
         try:
             from .SerperWebSearch import SerperWebSearch
             if not settings.serper_api_key:
                 logger.warning("Serper provider selected but no API key configured")
                 return None
+            logger.info("Using Serper web search provider")
             return SerperWebSearch(api_key=settings.serper_api_key)
         except ImportError as e:
             logger.error(f"Failed to import SerperWebSearch: {e}")
             return None
     elif provider_name == "none":
-        logger.info("No web search provider configured. Web functionality disabled")
+        logger.info("No web search provider configured")
         return None
     else:
-        logger.error(f"Unknown web search provider: {provider_name}. Web functionality disabled")
+        logger.error(f"Unknown web search provider: {provider_name}")
         return None
 
 
@@ -121,10 +142,10 @@ async def enhance_request_with_web_context(request_body: bytes, query: str = Non
     """
     Enhance AI request with web search context using configured providers.
     This method orchestrates the complete Web-RAG pipeline:
-    1. Query Extraction -> 2. Search -> 3. Scrape -> 4. Chunk -> 5. Context Assembly
+    1. Check for RAG provider -> 2. Check for web search provider -> 3. Execute pipeline
     
-    For Tavily: Steps 3-4 are skipped as Tavily provides pre-chunked content
-    For other providers: Full pipeline is executed
+    For RAG providers (Tavily): All-in-one pipeline
+    For web search providers (Serper): Manual pipeline with scraper + chunker
     
     Args:
         request_body: The original request body as bytes
@@ -134,36 +155,45 @@ async def enhance_request_with_web_context(request_body: bytes, query: str = Non
         Enhanced request body with web context injected as bytes
     """
     try:
-        # Get configured providers
+        # Step 1: Try to get RAG provider first
+        rag_provider = get_rag_provider()
+        
+        if rag_provider:
+            logger.info("Using RAG provider - all-in-one pipeline")
+            # Step 2: Extract query (use provided query or extract from request)
+            extracted_query = query or _extract_query_from_request_body(request_body)
+            
+            # Step 3: Perform RAG search (includes content extraction and chunking)
+            max_web_searches = settings.web_search_max_results
+            search_response = await rag_provider.search(extracted_query, max_web_searches)
+            
+            # Step 4: Inject context into request
+            return await _inject_web_context_into_request(request_body, search_response, extracted_query)
+        
+        # Step 5: Fall back to manual web search pipeline
         search_provider = get_web_search_provider()
         scraper_provider = get_web_scraper_provider()
         chunker_provider = get_chunker_provider()
         
         if not search_provider:
-            logger.warning("No web search provider available, cannot enhance request")
+            logger.warning("No RAG or web search provider available, cannot enhance request")
             return request_body
         
-        # Step 1: Extract query (use provided query or extract from request)
+        logger.info("Using manual web search pipeline")
+        # Step 6: Extract query
         extracted_query = query or _extract_query_from_request_body(request_body)
         
-        # Check if using Tavily (all-in-one RAG)
-        is_tavily = hasattr(search_provider, 'provider_name') and search_provider.provider_name == "Tavily"
+        # Step 7: Perform web search and scraping
+        max_web_searches = settings.web_search_max_results
+        search_response = await _perform_web_search_and_scraping(search_provider, scraper_provider, extracted_query, max_web_searches)
         
-        if is_tavily:
-            logger.info("Using Tavily all-in-one RAG - skipping separate scraping and chunking")
-            # Step 2: Perform Tavily search (includes content extraction and chunking)
-            search_response = await search_provider.search(extracted_query)
-        else:
-            # Step 2: Perform web search and scraping for other providers
-            search_response = await _perform_web_search_and_scraping(search_provider, scraper_provider, extracted_query)
-            
-            # Step 3: Chunk the scraped content
-            if settings.enable_chunking and chunker_provider and search_response.results:
-                await _chunk_search_results(search_response.results, chunker_provider)
+        # Step 8: Chunk the scraped content
+        if settings.enable_chunking and chunker_provider and search_response.results:
+            await _chunk_search_results(search_response.results, chunker_provider)
 
         for result in search_response.results:
             print(result.chunks)
-        # Step 4: Inject chunked context into request
+        # Step 9: Inject chunked context into request
         return await _inject_web_context_into_request(request_body, search_response, extracted_query)
             
     except Exception as e:
@@ -173,7 +203,8 @@ async def enhance_request_with_web_context(request_body: bytes, query: str = Non
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "query": query,
-                "search_provider": settings.web_search_provider,
+                "rag_provider": settings.rag_provider,
+                "web_search_provider": settings.web_search_provider,
                 "scraper_provider": settings.web_scraper_provider,
                 "chunker_provider": settings.chunker_provider,
             }
@@ -181,7 +212,7 @@ async def enhance_request_with_web_context(request_body: bytes, query: str = Non
         return request_body
 
 
-async def _perform_web_search_and_scraping(search_provider, scraper_provider, query: str):
+async def _perform_web_search_and_scraping(search_provider, scraper_provider, query: str, max_web_searches: int):
     """Perform web search and scraping, returning search response with scraped content."""
     from .BaseWebSearch import BaseWebSearch
     
@@ -189,7 +220,7 @@ async def _perform_web_search_and_scraping(search_provider, scraper_provider, qu
     web_search = BaseWebSearch(scraper=scraper_provider)
     
     # Perform search
-    search_response = await search_provider.search(query)
+    search_response = await search_provider.search(query, max_web_searches)
     
     # Scrape URLs from search results
     if search_response.results:
