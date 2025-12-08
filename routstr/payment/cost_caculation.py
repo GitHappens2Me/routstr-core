@@ -1,4 +1,5 @@
 import math
+from typing import Optional
 
 from pydantic.v1 import BaseModel
 
@@ -14,6 +15,7 @@ class CostData(BaseModel):
     input_msats: int
     output_msats: int
     total_msats: int
+    web_search_msats: Optional[int] = 0 
 
 
 class MaxCostData(CostData):
@@ -47,38 +49,55 @@ async def calculate_cost(  # todo: can be sync
         },
     )
 
+    test = MaxCostData(
+        base_msats=0,
+        input_msats=0,
+        output_msats=0,
+        total_msats=0,
+    )
+
     cost_data = MaxCostData(
         base_msats=max_cost,
         input_msats=0,
         output_msats=0,
         total_msats=max_cost,
     )
-     # Get web search cost (model-specific or fixed)
-     #TODO_ refactor and test
-    if response_data.get("web_search_executed"):
-        if not settings.fixed_pricing and response_data.get("model"):
-            from ..proxy import get_model_instance
-            model_obj = get_model_instance(response_data["model"])
-            if model_obj and model_obj.sats_pricing and hasattr(model_obj.sats_pricing, 'web_search'):
-                web_search_cost = int(model_obj.sats_pricing.web_search * 1_000)
-            else:
-                web_search_cost = int(settings.fixed_web_search_cost)
-        else:
-            web_search_cost = int(settings.fixed_web_search_cost)
         
-        cost_data.base_msats += web_search_cost
-        cost_data.total_msats += web_search_cost
-
-
     if "usage" not in response_data or response_data["usage"] is None:
         logger.warning(
-            "No usage data in response, using base cost only",
+            # TODO: This logging is incorrect: max_cost is used. Not base cost
+            "No usage data in response, using base cost only",  
             extra={
                 "max_cost_msats": max_cost,
                 "model": response_data.get("model", "unknown"),
             },
         )
         return cost_data
+
+    # Calculate web search cost (model-specific or fixed)
+    web_search_cost_msats = 0
+    if response_data.get("web_search_executed"):
+        # Check for an explicitly set fixed_web_search_cost
+        if settings.fixed_web_search_cost is not None:
+            web_search_cost_msats = int(settings.fixed_web_search_cost)
+            logger.debug(f"Using fixed cost for Websearch: {web_search_cost_msats} msats")
+        
+        # If fixed_web_search_cost is not set, use model-specific cost.
+        else:
+            response_model = response_data.get("model")
+            if response_model:
+                from ..proxy import get_model_instance
+                model_obj = get_model_instance(response_model) #TODO: fix duplicated get_model_instance (see below)
+                if model_obj and model_obj.sats_pricing and hasattr(model_obj.sats_pricing, 'web_search') and model_obj.sats_pricing.web_search is not None:
+                    # TODO: What unit is sats_pricing.web_search ??
+                    # Should fixed_web_search_cost follow that?
+                    web_search_cost_msats  = int(model_obj.sats_pricing.web_search) * 1000
+                    logger.debug(f"Using model-specific cost for Websearch: {web_search_cost_msats} msats")
+                else:
+                    logger.warning(
+                        "Websearch was performed but no pricing for websearch is defined for this model. Cost will be 0",
+                        extra={"model": response_model}
+                    )
 
     MSATS_PER_1K_INPUT_TOKENS: float = (
         float(settings.fixed_per_1k_input_tokens) * 1000.0
@@ -137,6 +156,7 @@ async def calculate_cost(  # todo: can be sync
 
     if not (MSATS_PER_1K_OUTPUT_TOKENS and MSATS_PER_1K_INPUT_TOKENS):
         logger.warning(
+            # TODO: This logging is incorrect: max_cost is used. Not base cost
             "No token pricing configured, using base cost",
             extra={
                 "base_cost_msats": max_cost,
@@ -152,11 +172,13 @@ async def calculate_cost(  # todo: can be sync
     output_msats = round(output_tokens / 1000 * MSATS_PER_1K_OUTPUT_TOKENS, 3)
     token_based_cost = math.ceil(input_msats + output_msats)
 
+    total_cost = token_based_cost + web_search_cost_msats
     
     print("input_tokens:", input_tokens,
             "output_tokens:", output_tokens,
             "input_cost_msats:", input_msats,
             "output_cost_msats:", output_msats,
+            "web_search_cost_msats", web_search_cost_msats,
             "total_cost_msats:", token_based_cost,
             "MSATS_PER_1K_INPUT_TOKENS", MSATS_PER_1K_INPUT_TOKENS,
             "MSATS_PER_1K_OUTPUT_TOKENS", MSATS_PER_1K_OUTPUT_TOKENS,
@@ -169,15 +191,16 @@ async def calculate_cost(  # todo: can be sync
             "output_tokens": output_tokens,
             "input_cost_msats": input_msats,
             "output_cost_msats": output_msats,
-            "total_cost_msats": token_based_cost,
+            "web_search_cost_msats": web_search_cost_msats,
+            "total_cost_msats": total_cost,
             "model": response_data.get("model", "unknown"),
         },
     )  
     
-    #TODO: Understand this and do i need to do base_msats=web_cost
     return CostData(
         base_msats=0,
         input_msats=int(input_msats),
         output_msats=int(output_msats),
-        total_msats=token_based_cost,
-    )
+        total_msats=total_cost,
+        web_search_msats=web_search_cost_msats
+        )

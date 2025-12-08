@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from pydantic.v1 import BaseModel, BaseSettings, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -84,10 +84,10 @@ class Settings(BaseSettings):
     tavily_api_key: str = Field(default="", env="TAVILY_API_KEY")
     web_search_max_results: int = Field(default=5, env="WEB_SEARCH_MAX_RESULTS")
     web_scrape_max_concurrent_urls: int = Field(default=10, env="WEB_SCRAPE_MAX_CONCURRENT_URLS")
+    
+    fixed_web_search_cost: Optional[int] = Field(default=None, env="FIXED_WEB_SEARCH_COST")
 
-    fixed_web_search_cost = int = Field(default=1000, env="FIXED_WEB_SEARCH_COST")
-
-    # Chunking Configuration
+    # Chunking Configuration [TODO: Remove?]
     enable_chunking: bool = Field(default=True, env="ENABLE_CHUNKING")
     chunker_provider: str = Field(default="fixed", env="CHUNKER_PROVIDER")
     chunk_max_size: int = Field(default=1000, env="CHUNK_MAX_SIZE")
