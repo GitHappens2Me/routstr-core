@@ -5,7 +5,7 @@ import json
 import re
 import traceback
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, Mapping, Tuple
 
 import httpx
 from fastapi import BackgroundTasks, HTTPException, Request
@@ -14,6 +14,7 @@ from fastapi.responses import Response, StreamingResponse
 from ..auth import adjust_payment_for_tokens
 from ..core import get_logger
 from ..core.db import ApiKey, AsyncSession, create_session
+from ..core.settings import settings
 
 if TYPE_CHECKING:
     from ..core.db import UpstreamProviderRow
@@ -661,6 +662,7 @@ class BaseUpstreamProvider:
             key: API key for authenticated user
             max_cost_for_model: Maximum cost deducted upfront
             session: Database session for balance updates
+            model_obj: Model object for pricing and configuration
 
         Returns:
             Response or StreamingResponse from upstream with cost tracking
@@ -671,23 +673,21 @@ class BaseUpstreamProvider:
         url = f"{self.base_url}/{path}"
 
         transformed_body = self.prepare_request_body(request_body, model_obj)
+        
+        transformed_body, enable_web_search = self._extract_web_search_parameter(transformed_body)
 
-        #TODO: When is transformed_body none? 
-        if transformed_body:
-            web_search_executed = False
-            # Enhance request with web search context if enabled
-            try:
-                from ..core.settings import settings
-                if settings.enable_web_search:
-                    transformed_body = await enhance_request_with_web_context(transformed_body)
-                    web_search_executed = True
+        web_search_executed = False
+        if transformed_body and settings.enable_web_search and enable_web_search:
+            try:                
+                logger.debug("Web search enabled and requested")
+                transformed_body = await enhance_request_with_web_context(transformed_body)
+                web_search_executed = True      
             except Exception as e:
                 logger.warning(
-                    "Failed to enhance request with web context",
+                    "Failed to enhance request with webcontext",
                     extra={
                         "error": str(e),
                         "error_type": type(e).__name__,
-                        "web_search_enabled": getattr(settings, 'enable_web_search', False),
                     }
                 )
 
@@ -879,6 +879,54 @@ class BaseUpstreamProvider:
                 500,
                 request=request,
             )
+
+    @staticmethod
+    def _extract_web_search_parameter(body: bytes | None) -> Tuple[bytes | None, bool]:
+        """
+        Extracts the 'enable_web_search' parameter from a JSON request body.
+
+        This function safely parses the body, extracts the boolean value of the
+        'enable_web_search' key, and returns the body bytes with the key removed
+        to prevent it from being forwarded to the upstream provider.
+
+        Args:
+            body: The raw request body as bytes
+
+        Returns:
+            A tuple containing:
+            - bytes | None: The modified body as bytes, with 'enable_web_search' removed.
+                            Returns the original body if parsing fails or it's not JSON.
+            - bool: The extracted value of 'enable_web_search', defaulting to False.
+        """
+        if not body:
+            return None, False
+
+        try:
+            body_dict = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            logger.warning(
+                "Failed to decode or parse request body as JSON for web search extraction.",
+                extra={
+                    "error": str(e), 
+                    "error_type": type(e).__name__
+                    }
+            )
+            return body, False
+
+        enable_web_search = bool(body_dict.pop("enable_web_search", False))
+
+        # Serialize the modified dictionary back to bytes
+        try:
+            cleaned_body = json.dumps(body_dict).encode('utf-8')
+            return cleaned_body, enable_web_search
+        except (TypeError, ValueError) as e:
+            # Log the error and return the original body
+            logger.error(
+                "Failed to re-serialize request body after removing web search parameter.",
+                extra={"error": str(e), "error_type": type(e).__name__}
+            )
+            return body, enable_web_search # Still return the flag
+
 
     async def forward_get_request(
         self,
