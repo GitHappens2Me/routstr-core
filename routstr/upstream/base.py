@@ -340,7 +340,7 @@ class BaseUpstreamProvider:
         )
 
     async def handle_streaming_chat_completion(
-        self, response: httpx.Response, key: ApiKey, max_cost_for_model: int
+        self, response: httpx.Response, key: ApiKey, max_cost_for_model: int, web_search_executed: bool = False
     ) -> StreamingResponse:
         """Handle streaming chat completion responses with token usage tracking and cost adjustment.
 
@@ -380,6 +380,7 @@ class BaseUpstreamProvider:
                         fallback: dict = {
                             "model": last_model_seen or "unknown",
                             "usage": None,
+                            "web_search_executed": web_search_executed,
                         }
                         cost_data = await adjust_payment_for_tokens(
                             fresh_key, fallback, new_session, max_cost_for_model
@@ -453,6 +454,10 @@ class BaseUpstreamProvider:
                                         )
                                         if fresh_key:
                                             try:
+                                                # Add web_search_executed flag when websearch was executed
+                                                if web_search_executed and "web_search_executed" not in data:
+                                                    data["web_search_executed"] = True
+                                                
                                                 cost_data = (
                                                     await adjust_payment_for_tokens(
                                                         fresh_key,
@@ -511,6 +516,7 @@ class BaseUpstreamProvider:
                         "key_hash": key.hashed_key[:8] + "...",
                     },
                 )
+                #TODO: Why is this not yielded? Raising instead causes crash
                 await finalize_without_usage()
                 raise
         
@@ -567,7 +573,7 @@ class BaseUpstreamProvider:
                 },
             )
 
-            #TODO: Better to always add the attribute for consistance (just set to False)
+            # Add web_search_executed flag when websearch was executed
             if web_search_executed:
                 response_json["web_search_executed"] = True
 
@@ -781,7 +787,7 @@ class BaseUpstreamProvider:
 
                 if is_streaming and response.status_code == 200:
                     result = await self.handle_streaming_chat_completion(
-                        response, key, max_cost_for_model
+                        response, key, max_cost_for_model, web_search_executed=web_search_executed
                     )
                     background_tasks = BackgroundTasks()
                     background_tasks.add_task(response.aclose)
