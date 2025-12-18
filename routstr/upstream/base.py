@@ -889,6 +889,8 @@ class BaseUpstreamProvider:
         'enable_web_search' key, and returns the body bytes with the key removed
         to prevent it from being forwarded to the upstream provider.
 
+        This can in the future be overwritten by the specific Upstream classes to handle their implementation of websearch, including special Request Parameters.
+
         Args:
             body: The raw request body as bytes
 
