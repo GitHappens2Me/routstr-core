@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
 
-from .BaseWebSearch import BaseWebSearch, WebSearchResponse, WebSearchResult
+from .BaseWebSearch import BaseWebSearch, SearchResult, WebPageContent
 from .BaseWebScraper import BaseWebScraper
 from ..core.logging import get_logger
 
@@ -46,7 +46,7 @@ class SerperWebSearch(BaseWebSearch):
         # The logger from the parent will have already run, so you can add your own.
         logger.info(f"SerperWebSearch initialized with API key.")
 
-    async def search(self, query: str, max_results: int = 10) -> WebSearchResponse:
+    async def search(self, query: str, max_results: int = 10) -> SearchResult:
         """
         Perform web search using the Serper API and return a WebSearchResponse.
         """
@@ -84,7 +84,7 @@ class SerperWebSearch(BaseWebSearch):
             organic_results = api_response.get('organic', [])
             parsed_results = []
             for i, item in enumerate(organic_results):
-                result = WebSearchResult(
+                result = WebPageContent(
                     title=item.get('title', 'No Title'),
                     url=item.get('link', ''),
                     snippet=item.get('snippet', 'No Snippet Available.'),
@@ -96,7 +96,7 @@ class SerperWebSearch(BaseWebSearch):
             if not parsed_results:
                 logger.warning(f"No organic results found for query: '{query}'")
                 # Return an empty response, not an error
-                return WebSearchResponse(
+                return SearchResult(
                     query=query,
                     results=[],
                     summary=f"No search results found for '{query}'.",
@@ -111,7 +111,7 @@ class SerperWebSearch(BaseWebSearch):
             # Calculate search time
             search_time = int((datetime.now() - start_time).total_seconds() * 1000)
             
-            return WebSearchResponse(
+            return SearchResult(
                 query=query,
                 results=parsed_results,
                 summary=summary,

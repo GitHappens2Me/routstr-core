@@ -1,6 +1,4 @@
-"""
-Factory module for creating web search and scraper instances based on configuration.
-"""
+import json
 
 from typing import Optional, List
 from ..core.logging import get_logger
@@ -16,7 +14,7 @@ def get_rag_provider():
     This only returns true all-in-one RAG providers (like Tavily).
     
     Returns:
-        RAG provider instance or None if not available
+        BaseWebSearch instance or None if not available
     """
     if not settings.rag_provider:
         logger.debug("No RAG_PROVIDER configured")
@@ -29,13 +27,26 @@ def get_rag_provider():
         try:
             from .TavilyWebSearch import TavilyWebSearch
             if not settings.tavily_api_key:
-                logger.warning("Tavily provider selected but no API key configured")
+                logger.warning("Tavily selected as search provider but no API key configured")
                 return None
-            logger.info("Using Tavily all-in-one RAG provider")
+            logger.info("Using Tavily RAG provider")
             return TavilyWebSearch(api_key=settings.tavily_api_key)
-        except ImportError as e:
+        except ImportError as e: #TODO: is this even necessary?
             logger.error(f"Failed to import TavilyWebSearch: {e}")
             return None
+        
+    if provider_name == "exa":
+        try:
+            from .ExaWebSearch import ExaWebSearch
+            if not settings.exa_api_key:
+                logger.warning("Exa selected as search provider but no API key configured")
+                return None
+            logger.info("Using Exa RAG provider")
+            return ExaWebSearch(api_key=settings.exa_api_key)
+        except ImportError as e:
+            logger.error(f"Failed to import ExaWebSearch: {e}")
+            return None
+        
     else:
         logger.error(f"Unknown RAG provider: {provider_name}")
         return None
@@ -165,10 +176,10 @@ async def enhance_request_with_web_context(request_body: bytes, query: str = Non
             
             # Step 3: Perform RAG search (includes content extraction and chunking)
             max_web_searches = settings.web_search_max_results
-            search_response = await rag_provider.search(extracted_query, max_web_searches)
+            search_result = await rag_provider.search(extracted_query, max_web_searches)
             
             # Step 4: Inject context into request
-            return await _inject_web_context_into_request(request_body, search_response, extracted_query)
+            return await _inject_web_context_into_request(request_body, search_result, extracted_query)
         
         # Step 5: Fall back to manual web search pipeline
         search_provider = get_web_search_provider()
@@ -185,16 +196,16 @@ async def enhance_request_with_web_context(request_body: bytes, query: str = Non
         
         # Step 7: Perform web search and scraping
         max_web_searches = settings.web_search_max_results
-        search_response = await _perform_web_search_and_scraping(search_provider, scraper_provider, extracted_query, max_web_searches)
+        search_result = await _perform_web_search_and_scraping(search_provider, scraper_provider, extracted_query, max_web_searches)
         
         # Step 8: Chunk the scraped content
-        if settings.enable_chunking and chunker_provider and search_response.results:
-            await _chunk_search_results(search_response.results, chunker_provider)
+        if settings.enable_chunking and chunker_provider and search_result.results:
+            await _chunk_search_results(search_result.results, chunker_provider)
 
-        for result in search_response.results:
+        for result in search_result.results:
             print(result.chunks)
         # Step 9: Inject chunked context into request
-        return await _inject_web_context_into_request(request_body, search_response, extracted_query)
+        return await _inject_web_context_into_request(request_body, search_result, extracted_query)
             
     except Exception as e:
         logger.error(
@@ -250,60 +261,66 @@ async def _chunk_search_results(results, chunker_provider, query: str = None):
             result.chunks = ranked_chunks[:settings.chunk_max_chunks_per_source]
             logger.debug(f"Created {len(result.chunks)} chunks for {result.url}")
 
+#TODO: If search_response is None: inject a short message telling the model that                                                            # TODO: Add type (move Dataclasses to webmanager)
+async def _inject_web_context_into_request(request_body: bytes, search_result, query: str) -> bytes:
+    """
+    Inject web search context into AI request, filtering out None values and empty content.
+    
+    Args:
+        request_body: The original request body as bytes
+        search_response: Either SearchResult object or None, if websearch failed
+        query: The search query used
+    
+    Returns:
+        Enhanced request body with web context injected as bytes
+    """
+    # Add number of results
+    web_context = f"Websearch yielded {len(search_result.results)} relevant results.\n"
 
-async def _inject_web_context_into_request(request_body: bytes, search_response, query: str = None) -> bytes:
-    """Inject web search context into the request body."""
-    import json
-    
-    # Parse the request body
-    data = json.loads(request_body)
-    
-    # Assemble context from chunks or full content
-    context_parts = []
-    
-    # Add AI-generated answer if available
-    if search_response.summary and not search_response.summary.startswith("No search results found"):
-        context_parts.append(f"AI-Generated Answer: {search_response.summary}")
-    
-    for result in search_response.results:
-        if result.chunks:
-            # Use pre-chunked content if available (from Tavily or other providers)
-            context_parts.append(
-                f"Source: {result.title} ({result.url})\n"
-                f"Relevant Content: {result.chunks}..."
-            )
-        elif result.content:
-            # Fallback to full content
-            context_parts.append(
-                f"Source: {result.title} ({result.url})\n"
-                f"Content: {result.content[:500]}..."
-            )
-    
-    web_context = "\n\n---\n\n".join(context_parts) if context_parts else "Web search was performed, but no content could be successfully scraped."
-    
-    web_message = {
-        "role": "system",
-        "content": f"Web search context for query '{query}':\n{web_context}"
-    }
-    
-    if "messages" in data:
-        data["messages"].insert(0, web_message)
-    
-    # Convert back to bytes
-    enhanced_body = json.dumps(data).encode()
-    
-    logger.info(
-        f"Request enhanced with web search context",
-        extra={
-            "query": query,
-            "original_size": len(request_body),
-            "enhanced_size": len(enhanced_body),
-            "total_results": len(search_response.results),
+    # Add optional summary
+    if search_result.summary:
+        web_context += f"Summary: '{search_result.summary}'\n"
+
+    # Add results
+    for i, web_page in enumerate(search_result.results, 1):
+        web_context += f"Result {i}: [Title: '{web_page.title}', "
+        web_context += f"URL: '{web_page.url}', "
+        
+        if web_page.snippet:
+            web_context += f"Summary: '{web_page.snippet}', "
+        
+        if web_page.published_date:
+            web_context += f"Publishing Date: '{web_page.published_date}', "
+        
+        if web_page.relevance_score:
+            web_context += f"Relevance Score: '{web_page.relevance_score}', "
+        
+        web_context += f"Relevant Sections: '{web_page.chunks}']\n"
+        
+    # Parse and enhance the request
+    try:
+        request_data = json.loads(request_body.decode('utf-8'))
+        
+        web_context_message = {
+            "role": "system",
+            "content": web_context,
         }
-    )
-    print(enhanced_body)
-    
-    return enhanced_body
+        
+        messages = request_data.get('messages', [])
+        messages.append(web_context_message)
+        request_data['messages'] = messages  
+
+        enhanced_request_body = json.dumps(request_data).encode('utf-8')
+        logger.info(f"Successfully injected web context for query: '{query}'")
+        print("Enhanced Body:", request_data)
+        return enhanced_request_body
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse request body for context injection: {e}")
+        return request_body
+    except Exception as e:
+        logger.error(f"Unexpected error during context injection: {e}")
+        return request_body
 
 
 def _extract_query_from_request_body(request_body: bytes) -> str:

@@ -27,24 +27,24 @@ except ImportError as e:
     GenericWebScraper = None
     WEB_SCRAPER_AVAILABLE = False
 
-
+# TODO: Maybe move to WebManager??
 @dataclass
-class WebSearchResult: #TODO: rename?
-    """Represents a single web search result."""
+class WebPageContent:
+    """Retrieved content from a single URL"""
     title: str
     url: str
-    snippet: str
+    snippet: str # Can contain a content summery #TODO: rename to summery (and make optional?)
     published_date: Optional[str] = None
-    relevance_score: float = 0.0
+    relevance_score: float = 0.0 #TODO: Is this necessary (Should i be made optional)
     content: Optional[str] = None
-    chunks: Optional[str] = None # Relevent Chunks as one string. LLM-Readable
+    chunks: Optional[str] = None # Relevant Chunks as one LLM-readable string. #TODO: Rename?
 
-
+# TODO: Maybe move to WebManager??
 @dataclass
-class WebSearchResponse: #TODO: rename?
-    """Complete web search response with context for AI."""
+class SearchResult:
+    """Complete web search result with context for AI."""
     query: str
-    results: List[WebSearchResult]
+    results: List[WebPageContent]
     summary: str
     total_results: int
     search_time_ms: int
@@ -60,14 +60,16 @@ class BaseWebSearch:
         Initialize the web search provider.
         """
         # Use the provided scraper or default to a GenericWebScraper (NOT BaseWebScraper)
+        # TODO: Refactor this so scraping is not requried 
         if not WEB_SCRAPER_AVAILABLE:
             raise ImportError("Web scraper functionality not available. Install websearch dependencies.")
         self.scraper = scraper or GenericWebScraper()  # Changed from BaseWebScraper()
         self.web_scraper = self.scraper
+        # TODO: This gets logged even when using complete RAG-as-a-Service providers
         logger.info(f"WebSearch initialized with scraper: {self.scraper.scraper_name}")
         
     
-    async def search(self, query: str, max_results: int = 5) -> WebSearchResponse:
+    async def search(self, query: str, max_results: int = 5) -> SearchResult:
         """Perform web search and return results."""
         raise NotImplementedError("Subclasses must implement search method")
     

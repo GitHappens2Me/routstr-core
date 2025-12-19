@@ -38,3 +38,5 @@ proof_backups
 
 *.todo
 ui_out
+
+api_responses/

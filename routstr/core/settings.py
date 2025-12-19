@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     web_scraper_provider: str = Field(default="generic", env="WEB_SCRAPER_PROVIDER")
     serper_api_key: str = Field(default="", env="SERPER_API_KEY")
     tavily_api_key: str = Field(default="", env="TAVILY_API_KEY")
+    exa_api_key: str = Field(default="", env="EXA_API_KEY")
     web_search_max_results: int = Field(default=5, env="WEB_SEARCH_MAX_RESULTS")
     web_scrape_max_concurrent_urls: int = Field(default=10, env="WEB_SCRAPE_MAX_CONCURRENT_URLS")
     
