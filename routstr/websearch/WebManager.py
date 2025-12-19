@@ -274,6 +274,10 @@ async def _inject_web_context_into_request(request_body: bytes, search_result, q
     Returns:
         Enhanced request body with web context injected as bytes
     """
+    
+    if(not search_result):
+        return request_body
+
     # Add number of results
     web_context = f"Websearch yielded {len(search_result.results)} relevant results.\n"
 
