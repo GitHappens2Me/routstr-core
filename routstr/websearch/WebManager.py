@@ -225,11 +225,7 @@ async def enhance_request_with_web_context(request_body: bytes, query: str = Non
 
 async def _perform_web_search_and_scraping(search_provider, scraper_provider, query: str, max_web_searches: int):
     """Perform web search and scraping, returning search response with scraped content."""
-    from .BaseWebSearch import BaseWebSearch
-    
-    # Create web search instance with configured scraper
-    web_search = BaseWebSearch(scraper=scraper_provider)
-    
+
     # Perform search
     search_response = await search_provider.search(query, max_web_searches)
     
@@ -274,7 +270,7 @@ async def _inject_web_context_into_request(request_body: bytes, search_result, q
     Returns:
         Enhanced request body with web context injected as bytes
     """
-    
+
     if(not search_result):
         return request_body
 

@@ -2,11 +2,9 @@
 import http.client
 import httpx
 import json
-import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from .BaseWebSearch import BaseWebSearch, SearchResult, WebPageContent
-from .BaseWebScraper import BaseWebScraper
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -23,9 +21,7 @@ class ExaWebSearch(BaseWebSearch):
         
         Args:
             api_key: The Exa API key.
-            scraper: Unused (TODO: Can i remove it?)
         """
-        super().__init__()
         if not api_key:
             raise ValueError("Exa API key cannot be empty.")
         self.api_key = api_key

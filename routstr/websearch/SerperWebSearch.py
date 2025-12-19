@@ -13,7 +13,6 @@ from typing import List, Dict, Any, Optional
 
 
 from .BaseWebSearch import BaseWebSearch, SearchResult, WebPageContent
-from .BaseWebScraper import BaseWebScraper
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,17 +25,13 @@ class SerperWebSearch(BaseWebSearch):
     provider_name = "Serper"
     
     
-    def __init__(self, api_key: str, scraper: Optional[BaseWebScraper] = None):
+    def __init__(self, api_key: str):
         """
         Initialize the Serper provider.
         
         Args:
             api_key: The Serper API key.
-            scraper: An optional web scraper instance. If None, a DummyWebScraper is used.
         """
-        # 1. Call the parent's __init__ method FIRST.
-        # This is what sets up self.scraper.
-        super().__init__(scraper=scraper)
         
         # 2. Now, do the Serper-specific initialization.
         if not api_key:
@@ -54,59 +49,38 @@ class SerperWebSearch(BaseWebSearch):
         logger.info(f"Performing Serper API search for: '{query}'")
 
         try:
-            from pathlib import Path 
-            # --- THIS IS THE PART YOU WANTED TO KEEP UNREACHABLE FOR NOW ---
-            # It will use a local file instead of making a live API call.
-            logger.debug("Using dummy data from 'serper_trump-peace-plan.json'.")
-            script_dir = Path(__file__).parent
-            json_file_path = script_dir / 'serper_trump-peace-plan.json'
-            with open(json_file_path, 'r', encoding='utf-8') as file:
-                api_response = json.load(file)
+                        # --- MOCK DATA FOR TESTING ---
+            api_response = await self._load_mock_data("serper_trump-peace-plan.json")
             # ---------------------------------------------------------------
-
-            # --- UNCOMMENT THE BLOCK BELOW FOR LIVE API CALLS ---
-            #
-            # conn = http.client.HTTPSConnection("google.serper.dev")
-            # payload = json.dumps({"q": query, "num": max_results})
-            # headers = {
-            #     f'X-API-KEY': self.api_key,
-            #     'Content-Type': 'application/json'
-            # }
-            # conn.request("POST", "/search", payload, headers)
-            # res = conn.getresponse()
-            # data = res.read()
-            # api_response = json.loads(data.decode("utf-8"))
-            # conn.close()
-            #
-            # -----------------------------------------------------------------
-
-            # Parse the organic results from the API response
-            organic_results = api_response.get('organic', [])
+            #api_response = await self._call_serper_api(query, max_results)
+            #await self._save_api_response(api_response, query, "exa")
+            # ---------------------------------------------------------------
+            
+            # Parse the results from the API response
+            serper_result = api_response.get('organic', [])
             parsed_results = []
-            for i, item in enumerate(organic_results):
+            for i, item in enumerate(serper_result):
                 result = WebPageContent(
                     title=item.get('title', 'No Title'),
-                    url=item.get('link', ''),
-                    snippet=item.get('snippet', 'No Snippet Available.'),
-                    published_date=item.get('date'),
-                    relevance_score=1.0 - (i * 0.1) # Simple relevance based on position
+                    url=item.get('link', 'Unknown URL'),
+                    snippet=item.get('snippet', None),
+                    published_date=item.get('date', None),
+                    relevance_score=1.0 - (i * 0.1), # Simple relevance based on position
+                    content = None,
+                    chunks = None,
                 )
                 parsed_results.append(result)
 
             if not parsed_results:
-                logger.warning(f"No organic results found for query: '{query}'")
-                # Return an empty response, not an error
-                return SearchResult(
+                logger.warning(f"No results found for query: '{query}'")
+                return SearchResult( #TODO: just return None?
                     query=query,
                     results=[],
-                    summary=f"No search results found for '{query}'.",
+                    summary=None,
                     total_results=0,
                     search_time_ms=int((datetime.now() - start_time).total_seconds() * 1000),
                     timestamp=datetime.now(timezone.utc).isoformat()
                 )
-
-            # Create summary using the inherited method from the base class
-            summary = ""
             
             # Calculate search time
             search_time = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -114,17 +88,67 @@ class SerperWebSearch(BaseWebSearch):
             return SearchResult(
                 query=query,
                 results=parsed_results,
-                summary=summary,
+                summary=None,
                 total_results=len(parsed_results),
                 search_time_ms=search_time,
                 timestamp=datetime.now(timezone.utc).isoformat()
             )
 
         except FileNotFoundError:
-            error_msg = "Dummy data file 'serper_trump-peace-plan.json' not found."
+            error_msg = "Dummy data file not found."
             logger.error(error_msg)
             raise Exception(error_msg)
         except Exception as e:
             error_msg = f"Failed to get or process Serper API response for query '{query}': {e}"
             logger.error(error_msg)
             raise Exception(error_msg)
+
+
+
+    async def _call_serper_api(self, query: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Make a live API call to Serper search service.
+        
+        Args:
+            query: The search query
+            max_results: Maximum number of results to return
+            
+        Returns:
+            Dictionary containing the API response
+            
+        Raises:
+            Exception: If API call fails or returns non-200 status
+        """
+
+
+        logger.debug(f"Making Serper API call for: '{query}'")
+        print("maximum results: ", max_results)
+        # Prepare Serper API request
+        #TODO: Move this to an persistant connection on startup?
+        conn = http.client.HTTPSConnection("google.serper.dev")
+        
+        payload = {
+            "q": query, 
+            "num": max_results
+            }
+        
+        headers = {
+            f'X-API-KEY': self.api_key,
+            'Content-Type': 'application/json'
+            }
+        
+        # Make the API request
+        conn.request("POST", "/search", json.dumps(payload), headers)
+        res = conn.getresponse()
+        data = res.read()
+        conn.close()
+        
+        # Parse the response
+        api_response = json.loads(data.decode("utf-8"))
+        
+        if res.status != 200:
+            error_msg = api_response.get('error', f'Serper API returned status {res.status}')
+            logger.error(f"Serper API error: {error_msg}")
+            raise Exception(f"Serper API error: {error_msg}")
+            
+        return api_response
