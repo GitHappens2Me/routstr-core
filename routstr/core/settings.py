@@ -84,16 +84,22 @@ class Settings(BaseSettings):
     tavily_api_key: str = Field(default="", env="TAVILY_API_KEY")
     exa_api_key: str = Field(default="", env="EXA_API_KEY")
     web_search_max_results: int = Field(default=5, env="WEB_SEARCH_MAX_RESULTS")
-    web_scrape_max_concurrent_urls: int = Field(default=10, env="WEB_SCRAPE_MAX_CONCURRENT_URLS")
-    
-    fixed_web_search_cost: Optional[int] = Field(default=None, env="FIXED_WEB_SEARCH_COST")
+    web_scrape_max_concurrent_urls: int = Field(
+        default=10, env="WEB_SCRAPE_MAX_CONCURRENT_URLS"
+    )
+
+    fixed_web_search_cost: Optional[int] = Field(
+        default=None, env="FIXED_WEB_SEARCH_COST"
+    )
 
     # Chunking Configuration [TODO: Remove?]
     enable_chunking: bool = Field(default=True, env="ENABLE_CHUNKING")
     chunker_provider: str = Field(default="fixed", env="CHUNKER_PROVIDER")
     chunk_max_size: int = Field(default=1000, env="CHUNK_MAX_SIZE")
     chunk_overlap: int = Field(default=200, env="CHUNK_OVERLAP")
-    chunk_max_chunks_per_source: int = Field(default=5, env="CHUNK_MAX_CHUNKS_PER_SOURCE")
+    chunk_max_chunks_per_source: int = Field(
+        default=5, env="CHUNK_MAX_CHUNKS_PER_SOURCE"
+    )
 
     # Other
     chat_completions_api_version: str = Field(

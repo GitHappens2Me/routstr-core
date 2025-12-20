@@ -15,7 +15,7 @@ class CostData(BaseModel):
     input_msats: int
     output_msats: int
     total_msats: int
-    web_search_msats: Optional[int] = 0 
+    web_search_msats: Optional[int] = 0
 
 
 class MaxCostData(CostData):
@@ -49,24 +49,17 @@ async def calculate_cost(  # todo: can be sync
         },
     )
 
-    test = MaxCostData(
-        base_msats=0,
-        input_msats=0,
-        output_msats=0,
-        total_msats=0,
-    )
-
     cost_data = MaxCostData(
         base_msats=max_cost,
         input_msats=0,
         output_msats=0,
         total_msats=max_cost,
     )
-        
+
     if "usage" not in response_data or response_data["usage"] is None:
         logger.warning(
             # TODO: This logging is incorrect: max_cost is used. Not base cost
-            "No usage data in response, using base cost only",  
+            "No usage data in response, using base cost only",
             extra={
                 "max_cost_msats": max_cost,
                 "model": response_data.get("model", "unknown"),
@@ -80,23 +73,37 @@ async def calculate_cost(  # todo: can be sync
         # Check for an explicitly set fixed_web_search_cost
         if settings.fixed_web_search_cost is not None:
             web_search_cost_msats = int(settings.fixed_web_search_cost)
-            logger.debug(f"Using fixed cost for Websearch: {web_search_cost_msats} msats")
-        
+            logger.debug(
+                f"Using fixed cost for Websearch: {web_search_cost_msats} msats"
+            )
+
         # If fixed_web_search_cost is not set, use model-specific cost.
         else:
             response_model = response_data.get("model")
             if response_model:
                 from ..proxy import get_model_instance
-                model_obj = get_model_instance(response_model) #TODO: fix duplicated get_model_instance (see below)
-                if model_obj and model_obj.sats_pricing and hasattr(model_obj.sats_pricing, 'web_search') and model_obj.sats_pricing.web_search is not None:
+
+                model_obj = get_model_instance(
+                    response_model
+                )  # TODO: fix duplicated get_model_instance (see below)
+                if (
+                    model_obj
+                    and model_obj.sats_pricing
+                    and hasattr(model_obj.sats_pricing, "web_search")
+                    and model_obj.sats_pricing.web_search is not None
+                ):
                     # TODO: What unit is sats_pricing.web_search ??
                     # Should fixed_web_search_cost follow that?
-                    web_search_cost_msats  = int(model_obj.sats_pricing.web_search) * 1000
-                    logger.debug(f"Using model-specific cost for Websearch: {web_search_cost_msats} msats")
+                    web_search_cost_msats = (
+                        int(model_obj.sats_pricing.web_search) * 1000
+                    )
+                    logger.debug(
+                        f"Using model-specific cost for Websearch: {web_search_cost_msats} msats"
+                    )
                 else:
                     logger.warning(
                         "Websearch was performed but no pricing for websearch is defined for this model. Cost will be 0",
-                        extra={"model": response_model}
+                        extra={"model": response_model},
                     )
 
     MSATS_PER_1K_INPUT_TOKENS: float = (
@@ -173,16 +180,27 @@ async def calculate_cost(  # todo: can be sync
     token_based_cost = math.ceil(input_msats + output_msats)
 
     total_cost = token_based_cost + web_search_cost_msats
-    
-    print("input_tokens:", input_tokens,
-            "output_tokens:", output_tokens,
-            "input_cost_msats:", input_msats,
-            "output_cost_msats:", output_msats,
-            "web_search_cost_msats", web_search_cost_msats,
-            "total_cost_msats:", token_based_cost,
-            "MSATS_PER_1K_INPUT_TOKENS", MSATS_PER_1K_INPUT_TOKENS,
-            "MSATS_PER_1K_OUTPUT_TOKENS", MSATS_PER_1K_OUTPUT_TOKENS,
-            "model:", response_data.get("model", "unknown"))
+
+    print(
+        "input_tokens:",
+        input_tokens,
+        "output_tokens:",
+        output_tokens,
+        "input_cost_msats:",
+        input_msats,
+        "output_cost_msats:",
+        output_msats,
+        "web_search_cost_msats",
+        web_search_cost_msats,
+        "total_cost_msats:",
+        token_based_cost,
+        "MSATS_PER_1K_INPUT_TOKENS",
+        MSATS_PER_1K_INPUT_TOKENS,
+        "MSATS_PER_1K_OUTPUT_TOKENS",
+        MSATS_PER_1K_OUTPUT_TOKENS,
+        "model:",
+        response_data.get("model", "unknown"),
+    )
 
     logger.info(
         "Calculated token-based cost",
@@ -195,12 +213,12 @@ async def calculate_cost(  # todo: can be sync
             "total_cost_msats": total_cost,
             "model": response_data.get("model", "unknown"),
         },
-    )  
-    
+    )
+
     return CostData(
         base_msats=0,
         input_msats=int(input_msats),
         output_msats=int(output_msats),
         total_msats=total_cost,
-        web_search_msats=web_search_cost_msats
-        )
+        web_search_msats=web_search_cost_msats,
+    )

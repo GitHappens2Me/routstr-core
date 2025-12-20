@@ -34,7 +34,6 @@ from ..payment.models import (
 )
 from ..payment.price import sats_usd_price
 from ..wallet import recieve_token, send_token
-
 from ..websearch.WebManager import enhance_request_with_web_context
 
 logger = get_logger(__name__)
@@ -145,7 +144,6 @@ class BaseUpstreamProvider:
 
         # Explicitly define the list of supported compression encodings
         headers["accept-encoding"] = "gzip, deflate, br, identity"
-
 
         logger.debug(
             "Headers prepared for upstream",
@@ -341,7 +339,11 @@ class BaseUpstreamProvider:
         )
 
     async def handle_streaming_chat_completion(
-        self, response: httpx.Response, key: ApiKey, max_cost_for_model: int, web_search_executed: bool = False
+        self,
+        response: httpx.Response,
+        key: ApiKey,
+        max_cost_for_model: int,
+        web_search_executed: bool = False,
     ) -> StreamingResponse:
         """Handle streaming chat completion responses with token usage tracking and cost adjustment.
 
@@ -456,9 +458,13 @@ class BaseUpstreamProvider:
                                         if fresh_key:
                                             try:
                                                 # Add web_search_executed flag when websearch was executed
-                                                if web_search_executed and "web_search_executed" not in data:
+                                                if (
+                                                    web_search_executed
+                                                    and "web_search_executed"
+                                                    not in data
+                                                ):
                                                     data["web_search_executed"] = True
-                                                
+
                                                 cost_data = (
                                                     await adjust_payment_for_tokens(
                                                         fresh_key,
@@ -517,10 +523,10 @@ class BaseUpstreamProvider:
                         "key_hash": key.hashed_key[:8] + "...",
                     },
                 )
-                #TODO: Why is this not yielded? Raising instead causes crash
+                # TODO: Why is this not yielded? Raising instead causes crash
                 await finalize_without_usage()
                 raise
-        
+
         # Remove inaccurate encoding headers from upstream response
         response_headers = dict(response.headers)
         response_headers.pop("content-encoding", None)
@@ -529,7 +535,7 @@ class BaseUpstreamProvider:
         return StreamingResponse(
             stream_with_cost(max_cost_for_model),
             status_code=response.status_code,
-            headers=response_headers, 
+            headers=response_headers,
         )
 
     async def handle_non_streaming_chat_completion(
@@ -562,7 +568,7 @@ class BaseUpstreamProvider:
 
         try:
             content = await response.aread()
-            #TODO: rename to repsonse_data, in line with auth/adjust_payment_for_tokens
+            # TODO: rename to repsonse_data, in line with auth/adjust_payment_for_tokens
             response_json = json.loads(content)
 
             logger.debug(
@@ -673,35 +679,39 @@ class BaseUpstreamProvider:
         url = f"{self.base_url}/{path}"
 
         transformed_body = self.prepare_request_body(request_body, model_obj)
-        
-        transformed_body, enable_web_search = self._extract_web_search_parameter(transformed_body)
+
+        transformed_body, enable_web_search = self._extract_web_search_parameter(
+            transformed_body
+        )
 
         web_search_executed = False
         if transformed_body and settings.enable_web_search and enable_web_search:
-            try:                
+            try:
                 logger.debug("Web search enabled and requested")
-                transformed_body = await enhance_request_with_web_context(transformed_body)
-                web_search_executed = True      
+                transformed_body = await enhance_request_with_web_context(
+                    transformed_body
+                )
+                web_search_executed = True
             except Exception as e:
                 logger.warning(
                     "Failed to enhance request with webcontext",
                     extra={
                         "error": str(e),
                         "error_type": type(e).__name__,
-                    }
+                    },
                 )
 
         logger.info(
-                    "Forwarding request to upstream",
-                    extra={
-                        "url": url,
-                        "method": request.method,
-                        "path": path,
-                        "key_hash": key.hashed_key[:8] + "...",
-                        "key_balance": key.balance,
-                        "has_request_body": request_body is not None,
-                    },
-                )
+            "Forwarding request to upstream",
+            extra={
+                "url": url,
+                "method": request.method,
+                "path": path,
+                "key_hash": key.hashed_key[:8] + "...",
+                "key_balance": key.balance,
+                "has_request_body": request_body is not None,
+            },
+        )
 
         client = httpx.AsyncClient(
             transport=httpx.AsyncHTTPTransport(retries=1),
@@ -784,10 +794,13 @@ class BaseUpstreamProvider:
                         "key_hash": key.hashed_key[:8] + "...",
                     },
                 )
-                #TODO: Additional checks for statuscode 200 are unnecessary (already checked in l. 744)
+                # TODO: Additional checks for statuscode 200 are unnecessary (already checked in l. 744)
                 if is_streaming and response.status_code == 200:
                     result = await self.handle_streaming_chat_completion(
-                        response, key, max_cost_for_model, web_search_executed=web_search_executed
+                        response,
+                        key,
+                        max_cost_for_model,
+                        web_search_executed=web_search_executed,
                     )
                     background_tasks = BackgroundTasks()
                     background_tasks.add_task(response.aclose)
@@ -798,7 +811,11 @@ class BaseUpstreamProvider:
                 elif response.status_code == 200:
                     try:
                         return await self.handle_non_streaming_chat_completion(
-                            response, key, session, max_cost_for_model, web_search_executed=web_search_executed
+                            response,
+                            key,
+                            session,
+                            max_cost_for_model,
+                            web_search_executed=web_search_executed,
                         )
                     finally:
                         await response.aclose()
@@ -908,10 +925,7 @@ class BaseUpstreamProvider:
         except (UnicodeDecodeError, json.JSONDecodeError) as e:
             logger.warning(
                 "Failed to decode or parse request body as JSON for web search extraction.",
-                extra={
-                    "error": str(e), 
-                    "error_type": type(e).__name__
-                    }
+                extra={"error": str(e), "error_type": type(e).__name__},
             )
             return body, False
 
@@ -919,16 +933,15 @@ class BaseUpstreamProvider:
 
         # Serialize the modified dictionary back to bytes
         try:
-            cleaned_body = json.dumps(body_dict).encode('utf-8')
+            cleaned_body = json.dumps(body_dict).encode("utf-8")
             return cleaned_body, enable_web_search
         except (TypeError, ValueError) as e:
             # Log the error and return the original body
             logger.error(
                 "Failed to re-serialize request body after removing web search parameter.",
-                extra={"error": str(e), "error_type": type(e).__name__}
+                extra={"error": str(e), "error_type": type(e).__name__},
             )
-            return body, enable_web_search # Still return the flag
-
+            return body, enable_web_search  # Still return the flag
 
     async def forward_get_request(
         self,

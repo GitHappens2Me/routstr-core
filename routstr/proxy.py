@@ -210,9 +210,6 @@ async def proxy(
     # Prepare headers for upstream
     headers = upstream.prepare_headers(dict(request.headers))
 
-    # Forward to upstream and handle response
-    print(f"Original Forwarding request:\n{headers}\n{request_body}")
-
     response = await upstream.forward_request(
         request,
         path,
@@ -223,7 +220,6 @@ async def proxy(
         session,
         model_obj,
     )
-
 
     if response.status_code != 200:
         await revert_pay_for_request(key, session, max_cost_for_model)
