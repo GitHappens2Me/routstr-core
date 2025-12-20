@@ -312,7 +312,7 @@ async def _inject_web_context_into_request(request_body: bytes, search_result, q
 
         enhanced_request_body = json.dumps(request_data).encode('utf-8')
         logger.info(f"Successfully injected web context for query: '{query}'")
-        print("Enhanced Body:", request_data)
+        logger.debug(f"Enhanced Body: '{request_data}'")
         return enhanced_request_body
         
     except json.JSONDecodeError as e:

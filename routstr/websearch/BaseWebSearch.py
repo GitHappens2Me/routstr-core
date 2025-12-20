@@ -1,11 +1,10 @@
 """
-Web search module for AI context enhancement.
+Base class for Web search for AI context enhancement using Retrieval Augmented Generation (RAG).
 
-This module provides web search functionality to enhance AI responses with current information from the web. 
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from ..core.logging import get_logger
@@ -19,22 +18,22 @@ class WebPageContent:
     """Retrieved content from a single URL"""
     title: str
     url: str
-    snippet: str # Can contain a content summery #TODO: rename to summery (and make optional?)
-    published_date: Optional[str] = None
-    relevance_score: float = 0.0 #TODO: Is this necessary (Should i be made optional)
-    content: Optional[str] = None
-    chunks: Optional[str] = None # Relevant Chunks as one LLM-readable string. #TODO: Rename?
+    summary: Optional[str] = None
+    publication_date: Optional[str] = None    
+    relevance_score: Optional[float] = None
+    content: Optional[str] = None           # Complete webpage content
+    relevant_chunks: Optional[str] = None   # Relevant chunks combined into one LLM-readable string.
 
-# TODO: Maybe move to WebManager??
+
 @dataclass
 class SearchResult:
-    """Complete web search result with context for AI."""
+    """Result of a websearch containing list of WebPageContent and and metadata"""
     query: str
     results: List[WebPageContent]
-    summary: str
-    total_results: int
-    search_time_ms: int
-    timestamp: str
+    summary: Optional[str] = None  
+    total_results: Optional[int] = None  
+    timestamp: Optional[str] = None  
+    search_time_ms: Optional[int] = None  
 
 
 class BaseWebSearch:

@@ -55,7 +55,7 @@ class ExaWebSearch(BaseWebSearch):
             exa_results = api_response.get('results', [])
             parsed_results = []
             
-            print(api_response)
+            #print(api_response)
             for i, web_page in enumerate(exa_results):
                 # Combine highlights to single string
                 if highlights := web_page.get('highlights', None):
@@ -64,11 +64,11 @@ class ExaWebSearch(BaseWebSearch):
                 result = WebPageContent(
                     title = web_page.get('title', 'No Title'),
                     url = web_page.get('url', 'Unknown URL'),
-                    snippet = web_page.get('summary', None), 
-                    published_date = web_page.get('publishedDate', None),
+                    summary = web_page.get('summary', None), 
+                    publication_date = web_page.get('publishedDate', None),
                     relevance_score = web_page.get('score', 1.0 - (i * 0.1)), # Fallback assumes results in order of relevance
                     content = web_page.get('text', None),
-                    chunks = highlights 
+                    relevant_chunks = highlights 
                 )
                 parsed_results.append(result)
 
@@ -87,7 +87,7 @@ class ExaWebSearch(BaseWebSearch):
             search_time = int((datetime.now() - start_time).total_seconds() * 1000)
             logger.info(f"Exa search completed successfully: {len(parsed_results)} results in {search_time}ms")
             
-            print(f"{query=}\nparsed_results:{parsed_results[:100]}" )
+            print(f"{query=}\nFirst Webresult:{parsed_results[0]}" )
             return SearchResult(
                 query=query,
                 results=parsed_results,

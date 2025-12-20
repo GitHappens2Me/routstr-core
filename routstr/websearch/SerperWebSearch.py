@@ -63,11 +63,11 @@ class SerperWebSearch(BaseWebSearch):
                 result = WebPageContent(
                     title=item.get('title', 'No Title'),
                     url=item.get('link', 'Unknown URL'),
-                    snippet=item.get('snippet', None),
-                    published_date=item.get('date', None),
+                    summary=item.get('snippet', None),
+                    publication_date=item.get('date', None),
                     relevance_score=1.0 - (i * 0.1), # Simple relevance based on position
                     content = None,
-                    chunks = None,
+                    relevant_chunks = None,
                 )
                 parsed_results.append(result)
 

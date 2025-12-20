@@ -62,11 +62,11 @@ class TavilyWebSearch(BaseWebSearch):
                 result = WebPageContent(
                     title = web_page.get('title', 'No Title'),
                     url = web_page.get('url', 'Unknown URL'),
-                    snippet = None,  # Snippet not supported by tavily
-                    published_date = None,  # Tavily doesn't provide publish date in basic search
+                    summary = None,  # Snippet not supported by tavily
+                    publication_date = None,  # Tavily doesn't provide publish date in basic search
                     relevance_score = web_page.get('score', 1.0 - (i * 0.1)),  # Fallback assumes results in order of relevance
                     content = web_page.get('raw_content', None), # Complete webpage content (usually unused)
-                    chunks = web_page.get('content', None)  # Tavily's pre-chunked content
+                    relevant_chunks = web_page.get('content', None)  # Tavily's pre-chunked content
                 )
                 parsed_results.append(result)
 

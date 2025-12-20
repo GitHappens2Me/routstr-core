@@ -784,7 +784,7 @@ class BaseUpstreamProvider:
                         "key_hash": key.hashed_key[:8] + "...",
                     },
                 )
-
+                #TODO: Additional checks for statuscode 200 are unnecessary (already checked in l. 744)
                 if is_streaming and response.status_code == 200:
                     result = await self.handle_streaming_chat_completion(
                         response, key, max_cost_for_model, web_search_executed=web_search_executed
