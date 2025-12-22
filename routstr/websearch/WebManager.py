@@ -9,8 +9,8 @@ from .BaseWebSearch import BaseWebSearch, SearchResult
 
 logger = get_logger(__name__)
 
-
-def get_rag_provider() -> Optional[BaseWebSearch]:
+# TODO: Add availibity check! 
+async def get_rag_provider() -> Optional[BaseWebSearch]:
     """
     Get RAG provider based on RAG_PROVIDER configuration.
     This only returns true all-in-one RAG providers (like Tavily).
@@ -23,7 +23,6 @@ def get_rag_provider() -> Optional[BaseWebSearch]:
         return None
 
     provider_name = settings.rag_provider.lower()
-    logger.info(f"Checking configured RAG provider: {provider_name}")
 
     if provider_name == "tavily":
         try:
@@ -31,13 +30,24 @@ def get_rag_provider() -> Optional[BaseWebSearch]:
 
             if not settings.tavily_api_key:
                 logger.warning(
-                    "Tavily selected as search provider but no API key configured"
+                    "Tavily selected as RAG provider but no API key configured"
                 )
                 return None
-            logger.info("Using Tavily RAG provider")
-            return TavilyWebSearch(api_key=settings.tavily_api_key)
+            tavily = TavilyWebSearch(api_key=settings.tavily_api_key)
+            if not await tavily.check_availability():
+                logger.warning(
+                    "Tavily availability check failed - service may be unavailable or API key invalid"
+                )
+                return None
+
+
+            logger.info("Using Tavily as RAG provider")
+            return tavily
         except ImportError as e:  # TODO: is this even necessary?
             logger.error(f"Failed to import TavilyWebSearch: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to initialize TavilyWebSearch: {e}")
             return None
 
     if provider_name == "exa":
@@ -46,13 +56,13 @@ def get_rag_provider() -> Optional[BaseWebSearch]:
 
             if not settings.exa_api_key:
                 logger.warning(
-                    "Exa selected as search provider but no API key configured"
+                    "Exa selected as RAG provider but no API key configured"
                 )
                 return None
-            logger.info("Using Exa RAG provider")
+            logger.info("Using Exa as RAG provider")
             return ExaWebSearch(api_key=settings.exa_api_key)
         except ImportError as e:
-            logger.error(f"Failed to import ExaWebSearch: {e}")
+            logger.error(f"Failed to initialize ExaWebSearch: {e}")
             return None
 
     else:
@@ -181,7 +191,7 @@ async def enhance_request_with_web_context(request_body: bytes) -> bytes:
     """
     try:
         # Step 1: Try to get RAG provider first
-        rag_provider = get_rag_provider()
+        rag_provider = await get_rag_provider()
 
         if rag_provider:
             logger.info("Using RAG provider - all-in-one pipeline")

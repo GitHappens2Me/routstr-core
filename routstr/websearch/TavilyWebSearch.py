@@ -43,7 +43,7 @@ class TavilyWebSearch(BaseWebSearch):
         Perform web search using the Tavily API and return a SearchResult instance.
         """
         start_time = datetime.now()
-        logger.info(f"Performing Tavily API search for: '{query}'")
+        logger.debug(f"Performing Tavily API search for: '{query}'")
 
         try:
             # --- MOCK DATA FOR TESTING  ---
@@ -59,7 +59,7 @@ class TavilyWebSearch(BaseWebSearch):
             tavily_results = api_response.get("results", [])
             parsed_results = []
 
-            print(api_response)
+            logger.debug(f"Tavily API response: {api_response}")
             for i, web_page in enumerate(tavily_results):
                 result = WebPageContent(
                     title=web_page.get("title", "No Title"),
@@ -97,7 +97,7 @@ class TavilyWebSearch(BaseWebSearch):
                 f"Tavily search completed successfully: {len(parsed_results)} results in {search_time}ms"
             )
 
-            print(f"{query=}\n{parsed_results=}")
+            logger.debug(f"Query: {query}, Results: {len(parsed_results)} items")
             return SearchResult(
                 query=query,
                 results=parsed_results,
@@ -117,7 +117,9 @@ class TavilyWebSearch(BaseWebSearch):
             )
             logger.error(error_msg)
             raise Exception(error_msg)
+        
 
+    # TODO: http.client.HTTPSConnection is not asynchronous
     async def _call_tavily_api(
         self, query: str, max_results: int = 10
     ) -> Dict[str, Any]:
@@ -142,7 +144,6 @@ class TavilyWebSearch(BaseWebSearch):
 
         # Tavily request payload with all-in-one RAG parameters
         payload = {
-            "api_key": self.api_key,
             "query": query,
             "search_depth": "advanced",  # Use advanced to get chunks functionality
             "include_images": False,  # We don't need images for RAG
@@ -176,3 +177,55 @@ class TavilyWebSearch(BaseWebSearch):
             raise Exception(f"Tavily API error: {error_msg}")
 
         return api_response
+
+    # TODO: http.client.HTTPSConnection is not asynchronous
+    async def check_availability(
+        self,
+    ) -> bool:
+        """
+        Make a live API call to Tavily Usage Endpoint to
+        1) Check availability of service
+        2) Check validity of API-Key
+
+        Returns:
+            Boolean, if availability is confirmed
+        """
+        logger.info("Checking Tavily API availability")
+
+        try:
+            # Prepare Tavily API request
+            # TODO: Move this to an persistant connection on startup?
+            conn = http.client.HTTPSConnection("api.tavily.com")
+
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            }
+
+            # Make the API request
+            conn.request("GET", "/usage", body=None, headers=headers)
+            res = conn.getresponse()
+            data = res.read()
+            conn.close()
+
+            # Parse the response
+            api_response = json.loads(data.decode("utf-8"))
+                        
+            logger.debug(f"Tavily usage endpoint response: {api_response}")
+            
+            if res.status != 200:
+                error_msg = api_response.get(
+                    "error", f"Tavily API not available: {res.status}"
+                )
+                logger.error(f"Tavily availability check failed: {error_msg}")
+                return False
+
+            logger.info("Tavily API availability check completed succesfully")
+            return True
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Tavily availability check failed - JSON decode error: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Tavily availability check failed - unexpected error: {e}")
+            return False
