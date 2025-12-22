@@ -10,12 +10,12 @@ import asyncio
 from typing import List
 
 from ..core.logging import get_logger
-from .BaseChunker import BaseChunker
+from .BaseWebChunker import BaseWebChunker
 
 logger = get_logger(__name__)
 
 
-class FixedSizeChunker(BaseChunker):
+class FixedSizeChunker(BaseWebChunker):
     """Simple fixed-size character chunker."""
 
     chunker_name = "fixed"

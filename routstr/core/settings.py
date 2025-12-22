@@ -77,9 +77,10 @@ class Settings(BaseSettings):
 
     # Web Search / RAG
     enable_web_search: bool = Field(default=False, env="ENABLE_WEB_SEARCH")
-    rag_provider: str = Field(default="", env="RAG_PROVIDER")
+    
+    web_rag_provider: str = Field(default="", env="WEB_RAG_PROVIDER")
     web_search_provider: str = Field(default="serper", env="WEB_SEARCH_PROVIDER")
-    web_scraper_provider: str = Field(default="generic", env="WEB_SCRAPER_PROVIDER")
+    web_scraper_provider: str = Field(default="default", env="WEB_SCRAPER_PROVIDER")
     serper_api_key: str = Field(default="", env="SERPER_API_KEY")
     tavily_api_key: str = Field(default="", env="TAVILY_API_KEY")
     exa_api_key: str = Field(default="", env="EXA_API_KEY")

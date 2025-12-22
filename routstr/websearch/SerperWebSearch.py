@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from ..core.logging import get_logger
-from .BaseWebSearch import BaseWebSearch, SearchResult, WebPageContent
+from .BaseWebSearch import BaseWebSearch
+from .types import SearchResult, WebPageContent
 
 logger = get_logger(__name__)
 
@@ -63,8 +64,7 @@ class SerperWebSearch(BaseWebSearch):
                     url=item.get("link", "Unknown URL"),
                     summary=item.get("summary", None),
                     publication_date=item.get("date", None),
-                    relevance_score=1.0
-                    - (i * 0.1),  # Simple relevance based on position
+                    relevance_score=1.0 - (i * 0.1),  # Simple relevance based on position
                     content=None,
                     relevant_chunks=None,
                 )

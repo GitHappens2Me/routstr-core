@@ -1,4 +1,10 @@
-"""Exa API Searcher Module This module provides a WebSearchProvider implementation that uses the Exa API to get search results and formats them into the standard SearchResult. Exa provides intelligent web search with embeddings-based models and content extraction."""
+"""
+Exa API RAG Provider Module
+
+This module provides a complete RAG implementation using the Exa API.
+Exa delivers intelligent web search with embeddings-based ranking, content extraction,
+and highlight generation optimized for AI context enhancement.
+"""
 
 import http.client
 import json
@@ -6,29 +12,33 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from ..core.logging import get_logger
-from .BaseWebSearch import BaseWebSearch, SearchResult, WebPageContent
 
+from .BaseWebRAG import BaseWebRAG
+from .types import SearchResult, WebPageContent
 logger = get_logger(__name__)
 
 
-class ExaWebSearch(BaseWebSearch):
+class ExaWebRAG(BaseWebRAG):
     """
-    A web search provider that uses the Exa API to get search results.
+    All-in-one RAG provider using the Exa API for neural web search and content extraction.
     """
 
     provider_name = "Exa"
 
     def __init__(self, api_key: str):
         """
-        Initialize the Exa provider.
+        Initialize the Exa RAG provider.
 
         Args:
-            api_key: The Exa API key.
+            api_key: The Exa API key for authentication
+            
+        Raises:
+            ValueError: If API key is empty or None
         """
         if not api_key:
             raise ValueError("Exa API key cannot be empty.")
         self.api_key = api_key
-        logger.info("ExaWebSearch initialized.")
+        logger.info("ExaWebRAG initialized.")
 
         # TODO: Maybe use a persitant connection:
         # How to handle graceful shutdown?
@@ -38,9 +48,19 @@ class ExaWebSearch(BaseWebSearch):
         #    timeout=30.0  # Good practice to set a default timeout
         # )
 
-    async def search(self, query: str, max_results: int = 10) -> SearchResult:
+    async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
         """
-        Perform web search using the Exa API and return a SearchResult instance.
+        Perform RAG retrieval using Exa's neural search API.
+        
+        Args:
+            query: The search query for retrieving relevant web content
+            max_results: Maximum number of web sources to process (max 10 recommended)
+            
+        Returns:
+            SearchResult with neural-ranked content, extracted highlights, and metadata
+            
+        Raises:
+            Exception: If API call fails or response parsing fails
         """
         start_time = datetime.now()
         logger.info(f"Performing Exa API search for: '{query}'")
@@ -119,17 +139,18 @@ class ExaWebSearch(BaseWebSearch):
 
     async def _call_exa_api(self, query: str, max_results: int = 10) -> Dict[str, Any]:
         """
-        Make a live API call to Exa search service using neural search.
+        Make live API call to Exa's neural search endpoint.
 
         Args:
             query: The search query
             max_results: Maximum number of results to return
-
+            
         Returns:
-            Dictionary containing the API response
-
+            Dictionary containing the complete Exa API response
+            
         Raises:
             Exception: If API call fails or returns non-200 status
+            
         """
         logger.debug(f"Making live Exa API call for: '{query}'")
         print("maximum results: ", max_results)
@@ -187,3 +208,17 @@ class ExaWebSearch(BaseWebSearch):
             raise Exception(f"Exa API error: {error_msg}")
 
         return api_response
+
+    async def check_availability(
+        self,
+    ) -> bool:
+        """
+        Verify Exa service availability and API key validity.
+        
+        Returns:
+            True if basic validation passes, False otherwise
+            
+        """
+        # TODO: How can we check Exa availability without using tokens (/usage endpoint not supported)
+        # Currently just returns True as placeholder 
+        return True

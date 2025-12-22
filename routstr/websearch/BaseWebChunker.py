@@ -13,7 +13,7 @@ from ..core.logging import get_logger
 logger = get_logger(__name__)
 
 
-class BaseChunker(ABC):
+class BaseWebChunker(ABC):
     """Base class for content chunkers."""
 
     chunker_name: str = "base"
@@ -97,3 +97,27 @@ class BaseChunker(ABC):
             return False
 
         return True
+
+    async def chunk_search_results(self, search_result: "SearchResult", query: str) -> "SearchResult":
+        """
+        Chunk the content in search results using the configured chunking strategy.
+        
+        Args:
+            search_result: SearchResult object with content to chunk
+            query: Original query for relevance ranking
+            
+        Returns:
+            SearchResult with chunked content populated
+        """
+        logger.info(f"Chunking content for {len(search_result.results)} search results")
+        
+        for result in search_result.results:
+            if result.content:
+                chunks = await self.chunk_text(result.content)
+                # Rank chunks by relevance and limit chunks per source
+                ranked_chunks = self.rank_chunks(chunks, query)
+                ranked_chunks = ranked_chunks[:5]  # Default limit, could be configurable
+                result.relevant_chunks = " [...] ".join(ranked_chunks)
+                logger.debug(f"Selected {len(ranked_chunks)} chunks for {result.url}")
+                
+        return search_result

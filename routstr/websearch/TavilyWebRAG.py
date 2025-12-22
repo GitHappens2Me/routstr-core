@@ -1,9 +1,9 @@
 """
-Tavily API Searcher Module
+Tavily API RAG Provider Module
 
-This module provides a WebSearchProvider implementation that uses the Tavily API
-to get search results and formats them into the standard WebSearchResponse.
-Tavily provides an all-in-one RAG solution with search, content extraction, and ranking.
+This module provides a complete RAG implementation using the Tavily API.
+Tavily offers an all-in-one solution combining web search, content extraction,
+and intelligent chunking specifically designed for AI context enhancement.
 """
 
 import http.client
@@ -12,35 +12,56 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from ..core.logging import get_logger
-from .BaseWebSearch import BaseWebSearch, SearchResult, WebPageContent
 
+from .BaseWebRAG import BaseWebRAG
+from .types import SearchResult, WebPageContent
 logger = get_logger(__name__)
 
 
-class TavilyWebSearch(BaseWebSearch):
+class TavilyWebRAG(BaseWebRAG):
     """
-    A web search provider that uses the Tavily API to get search results.
+    All-in-one RAG provider using the Tavily API for intelligent web content retrieval.
+    
+    Tavily handles the complete pipeline: web search, content extraction,
+    relevance ranking, and chunking in a single API call, making it ideal
+    for Retrieval Augmented Generation use cases.
     """
 
     provider_name = "Tavily"
 
     def __init__(self, api_key: str):
         """
-        Initialize the Tavily provider.
+        Initialize the Tavily RAG provider.
 
         Args:
-            api_key: The Tavily API key.
+            api_key: The Tavily API key for authentication
+            
+        Raises:
+            ValueError: If API key is empty or None
         """
 
         if not api_key:
             raise ValueError("Tavily API key cannot be empty.")
         self.api_key = api_key
 
-        logger.info("TavilyWebSearch initialized.")
+        logger.info("TavilyWebRAG initialized.")
 
-    async def search(self, query: str, max_results: int = 10) -> SearchResult:
+    async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
         """
-        Perform web search using the Tavily API and return a SearchResult instance.
+        Perform complete RAG pipeline using Tavily's all-in-one API.
+        
+        Executes web search, content extraction, and chunking in a single call
+        to Tavily's advanced search endpoint with RAG-optimized parameters.
+
+        Args:
+            query: The search query for retrieving relevant web content
+            max_results: Maximum number of web sources to process (max 10 for Tavily)
+            
+        Returns:
+            SearchResult with processed content, pre-chunked highlights, and metadata
+            
+        Raises:
+            Exception: If API call fails or response parsing fails
         """
         start_time = datetime.now()
         logger.debug(f"Performing Tavily API search for: '{query}'")
@@ -124,17 +145,20 @@ class TavilyWebSearch(BaseWebSearch):
         self, query: str, max_results: int = 10
     ) -> Dict[str, Any]:
         """
-        Make a live API call to Tavily search service.
+        Make live API call to Tavily's advanced search endpoint.
 
         Args:
             query: The search query
-            max_results: Maximum number of results to return
-
+            max_results: Maximum number of results to return (max 10)
+            
         Returns:
-            Dictionary containing the API response
-
+            Dictionary containing the complete Tavily API response
+            
         Raises:
             Exception: If API call fails or returns non-200 status
+            
+        Note:
+            Uses advanced search depth with chunking enabled for optimal RAG performance
         """
         logger.debug(f"Making live Tavily API call for: '{query}'")
 
@@ -183,12 +207,15 @@ class TavilyWebSearch(BaseWebSearch):
         self,
     ) -> bool:
         """
-        Make a live API call to Tavily Usage Endpoint to
-        1) Check availability of service
-        2) Check validity of API-Key
+        Verify Tavily service availability and API key validity.
+        
+        Makes a lightweight call to Tavily's usage endpoint to confirm:
+        - Service is accessible and operational
+        - API key is valid and authorized
+        - Rate limits and quotas are available
 
         Returns:
-            Boolean, if availability is confirmed
+            True if Tavily service is available and API key is valid, False otherwise
         """
         logger.info("Checking Tavily API availability")
 

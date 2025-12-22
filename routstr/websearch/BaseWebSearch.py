@@ -8,37 +8,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from .types import SearchResult
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-# TODO: Maybe move to WebManager??
-@dataclass
-class WebPageContent:
-    """Retrieved content from a single URL"""
-
-    title: str
-    url: str
-    summary: Optional[str] = None
-    publication_date: Optional[str] = None
-    relevance_score: Optional[float] = None
-    content: Optional[str] = None  # Complete webpage content
-    relevant_chunks: Optional[str] = (
-        None  # Relevant chunks combined into one LLM-readable string.
-    )
-
-
-@dataclass
-class SearchResult:
-    """Result of a websearch containing list of WebPageContent and and metadata"""
-
-    query: str
-    results: List[WebPageContent]  # TODO:Rename to pages?
-    summary: Optional[str] = None
-    total_results: Optional[int] = None
-    timestamp: Optional[str] = None
-    search_time_ms: Optional[int] = None
 
 
 class BaseWebSearch:
