@@ -122,8 +122,6 @@ def get_web_search_provider() -> Optional[BaseWebSearch]:
         return None
 
     provider_name = settings.web_search_provider.lower()
-    logger.info(f"Checking configured web search provider: {provider_name}")
-
     if provider_name == "serper":
         try:
             from .SerperWebSearch import SerperWebSearch
@@ -131,7 +129,7 @@ def get_web_search_provider() -> Optional[BaseWebSearch]:
             if not settings.serper_api_key:
                 logger.warning("Serper provider selected but no API key configured")
                 return None
-            logger.info("Using Serper web search provider")
+            #logger.info("Using Serper web search provider")
             return SerperWebSearch(api_key=settings.serper_api_key)
         except ImportError as e:
             logger.error(f"Failed to import SerperWebSearch: {e}")
@@ -230,10 +228,9 @@ async def enhance_request_with_web_context(request_body: bytes) -> bytes:
             logger.warning("No RAG provider available, cannot enhance request")
             return request_body
 
-        logger.info(f"Using RAG provider: {rag_provider.provider_name}")
-        
         # Extract query from request
         extracted_query = _extract_query_from_request_body(request_body)
+        
 
         # Perform complete RAG pipeline (handles all complexity internally)
         max_web_searches = settings.web_search_max_results
@@ -255,7 +252,7 @@ async def enhance_request_with_web_context(request_body: bytes) -> bytes:
         )
         return request_body
 
-
+#TODO :remove
 async def _perform_web_search_and_scraping(
     search_provider: BaseWebSearch,
     scraper_provider: BaseWebScraper,

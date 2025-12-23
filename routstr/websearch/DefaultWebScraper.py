@@ -52,57 +52,37 @@ class DefaultWebScraper(BaseWebScraper):
 
     scraper_name = "default"
 
-    def __init__(self, output_dir: str = "scraped_html"):
-        # httpx.AsyncClient is more efficient for async operations
-        self.client = httpx.AsyncClient(
-            timeout=httpx.Timeout(10.0, connect=5.0),  # 10s total, 5s connect
-            headers={
+    def __init__(self):
+        super().__init__() 
+
+        self._client_config = {
+            "timeout": httpx.Timeout(3.0, connect=3.0),
+            "headers": {
                 "Accept": "text/html, text/plain",
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             },
-            follow_redirects=True,
-        )
-        self.output_dir = output_dir
-        # Create the output directory if it doesn't exist
-        os.makedirs(self.output_dir, exist_ok=True)
+            "follow_redirects": True,
+        }
+        self.client: Optional[httpx.AsyncClient] = None
 
-    def _sanitize_filename(self, url: str) -> str:
-        """Create a safe filename from a URL."""
-        # Remove protocol
-        filename = url.replace("https://", "").replace("http://", "")
-        # Replace path separators and other unsafe characters
-        filename = re.sub(r'[\\/:*?"<>|]', "_", filename)
-        # Limit length and add .html extension
-        return f"{filename[:250]}.txt"
+    async def get_client(self) -> httpx.AsyncClient:
+        """Ensures the httpx client is created and open."""
+        if self.client is None or self.client.is_closed:
+            self.client = httpx.AsyncClient(**self._client_config)
+        return self.client
 
-    async def _write_to_file(self, filename: str, content: str) -> None:
-        """Asynchronously write raw HTML content to a file."""
-        try:
-            filename = self._sanitize_filename(filename)
-            filepath = os.path.join(self.output_dir, filename)
-
-            def write_file() -> None:
-                with open(filepath, "w") as f:
-                    f.write(filename)
-                    f.write("\n")
-                    f.write(content)
-
-            await asyncio.to_thread(write_file)
-
-        except Exception as e:
-            logger.error(f"Failed to write HTML for {filename} to file: {e}")
 
     async def scrape_url(self, url: str) -> Optional[str]:
         """Scrape content from a single URL."""
         start_time = datetime.now()
-
+        client = await self.get_client()
         try:
             # 1. Reject URLs that are too long
             if len(url) >= 200:
                 raise ScrapeFailureError(f"Rejected: URL too long ({len(url)} chars)")
 
             # 2. Make the HTTP GET request
-            response = await self.client.get(url)
+            response = await client.get(url)
             # print(response)
             # 3. Validate MIME type from headers
             content_type = response.headers.get("content-type", "").lower()
@@ -137,7 +117,8 @@ class DefaultWebScraper(BaseWebScraper):
 
             # Log the error as before
             if isinstance(e, httpx.TimeoutException):
-                logger.error(f"Timeout exceeded for {url}: {error_message}")
+                print(url)
+                logger.error(f"Timeout exceeded for {url}: {e}, {error_message}")
             elif isinstance(e, httpx.RequestError):
                 logger.error(f"Request failed for {url}: {error_message}")
             elif isinstance(e, ScrapeFailureError):
@@ -145,11 +126,38 @@ class DefaultWebScraper(BaseWebScraper):
             else:
                 logger.error(f"An unexpected error occurred for {url}: {error_message}")
 
-            # Calculate metrics for the failed attempt
-            scrape_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-
             # 10. Return the error ScrapedContent object
             return None
+
+
+    async def scrape_webpages(
+        self, webpages: List[WebPageContent], max_concurrent: int = 10
+    ) -> List[WebPageContent]:
+        """
+        Scrapes multiple URLs concurrently using asyncio.gather and a semaphore.
+        """
+        #TODO:  define this globally in init?
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def scrape_single_page(webpage: WebPageContent) -> WebPageContent:
+            """Wraps the scraping of a single page with the semaphore."""
+            async with semaphore:
+                content = await self.scrape_url(webpage.url)
+                webpage.content = content
+                return webpage
+
+        # Create a list of tasks to run concurrently
+        tasks = [scrape_single_page(page) for page in webpages]
+        
+        # Wait for all tasks to complete, returning exceptions in the results list
+        scraped_webpages = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        successful_results = [
+            page for page in scraped_webpages if page.content is not None
+        ]
+    
+        return successful_results
+
 
     async def extract_content(self, raw_html, url): 
         start_time = datetime.now()
@@ -176,7 +184,7 @@ class DefaultWebScraper(BaseWebScraper):
                         content = result["content"].strip()
                         title = result.get("title", "No title found")
                         
-                        logger.info(f"Successfully extracted content with {name} for {url}. Title: '{title}'")
+                        #logger.info(f"Successfully extracted content with {name} for {url}. Title: '{title}'")
                         
                         await self._write_to_file(f"{name.lower()}_{url}", content)
                         return content
@@ -200,7 +208,7 @@ class DefaultWebScraper(BaseWebScraper):
         finally:
             # Log timing for both success and failure
             scrape_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            logger.info(f"Scraping attempt for {url} completed in {scrape_time_ms}ms")
+            logger.debug(f"Scraping attempt for {url[:20]}.. completed in {scrape_time_ms}ms")
 
 
 

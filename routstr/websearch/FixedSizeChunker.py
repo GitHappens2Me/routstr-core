@@ -53,7 +53,7 @@ class FixedSizeChunker(BaseWebChunker):
         # If text is shorter than chunk_size, return it as a single chunk
         if text_length <= self.chunk_size:
             logger.debug(
-                f"Text length ({text_length}) <= chunk_size ({self.chunk_size}), returning single chunk"
+                f"Text length ({text_length}) <= chunk_size ({self.chunk_size}), returning single chunk: {text}"
             )
             return [text]
 
@@ -72,9 +72,6 @@ class FixedSizeChunker(BaseWebChunker):
                     len(remaining_text) < self.chunk_size * 0.3
                 ):  # Less than 30% of chunk size
                     chunks[-1] += remaining_text
-                    logger.debug(
-                        f"Appended remaining {len(remaining_text)} chars to last chunk"
-                    )
                     break
 
             # Create chunk
@@ -88,26 +85,6 @@ class FixedSizeChunker(BaseWebChunker):
             if start <= 0:
                 start = self.chunk_size
 
-        logger.debug(f"Created {len(chunks)} chunks from {text_length} characters")
         return chunks
 
-    def chunk_texts_batch(self, texts: List[str], **kwargs) -> List[List[str]]:
-        """
-        Chunk multiple texts concurrently.
 
-        Args:
-            texts: List of texts to chunk
-            **kwargs: Additional parameters (ignored for fixed-size chunking)
-
-        Returns:
-            List of lists containing text chunks for each input text
-        """
-        logger.debug(f"Batch chunking {len(texts)} texts with {self.chunker_name}")
-
-        # For fixed-size chunking, we can process texts in parallel
-        async def process_text(text: str) -> List[str]:
-            return await self.chunk_text(text, **kwargs)
-
-        # Run all chunking operations concurrently
-        tasks = [process_text(text) for text in texts]
-        return asyncio.run(asyncio.gather(*tasks, return_exceptions=True))

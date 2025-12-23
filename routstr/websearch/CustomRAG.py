@@ -11,11 +11,11 @@ from typing import List
 
 from ..core.logging import get_logger
 from ..core.settings import settings
-from .BaseWebChunker import BaseWebChunker
-from .BaseWebRAG import BaseWebRAG
-from .BaseWebScraper import BaseWebScraper
-from .BaseWebSearch import BaseWebSearch
 from .types import SearchResult, WebPageContent
+from .BaseWebRAG import BaseWebRAG
+from .BaseWebSearch import BaseWebSearch
+from .BaseWebChunker import BaseWebChunker
+from .BaseWebScraper import BaseWebScraper
 
 logger = get_logger(__name__)
 
@@ -33,8 +33,8 @@ class CustomRAG(BaseWebRAG):
     def __init__(
         self,
         search_provider: BaseWebSearch,
-        scraper_provider: BaseWebScraper,
-        chunker_provider: BaseWebChunker,
+        scrape_provider: BaseWebScraper,
+        chunk_provider: BaseWebChunker,
     ):
         """
         Initialize CustomRAG with pipeline components.
@@ -49,18 +49,18 @@ class CustomRAG(BaseWebRAG):
         """
         if not search_provider:
             raise ValueError("Search provider cannot be None")
-        if not scraper_provider:
+        if not scrape_provider:
             raise ValueError("Scraper provider cannot be None")
-        if not chunker_provider:
+        if not chunk_provider:
             raise ValueError("Chunker provider cannot be None")
 
         self.search_provider = search_provider
-        self.scraper_provider = scraper_provider
-        self.chunker_provider = chunker_provider
+        self.scraper_provider = scrape_provider
+        self.chunker_provider = chunk_provider
 
         logger.info(
             f"CustomRAG initialized with: {search_provider.__class__.__name__}, "
-            f"{scraper_provider.__class__.__name__}, {chunker_provider.__class__.__name__}"
+            f"{scrape_provider.__class__.__name__}, {chunk_provider.__class__.__name__}"
         )
 
     async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
@@ -87,8 +87,6 @@ class CustomRAG(BaseWebRAG):
         logger.info(f"Starting CustomRAG pipeline for query: '{query}'")
 
         try:
-            # Step 1: Perform web search
-            logger.debug("Step 1: Performing web search")
             search_response = await self.search_provider.search(query, max_results)
 
             if not search_response.results:
@@ -102,14 +100,10 @@ class CustomRAG(BaseWebRAG):
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 )
 
-            # Step 2: Scrape content from URLs
-            logger.debug(f"Step 2: Scraping content from {len(search_response.results)} URLs")
             await self.scraper_provider.scrape_search_results(search_response)
 
-            # Step 3: Chunk the scraped content
             if settings.enable_chunking and search_response.results:
-                logger.debug("Step 3: Chunking scraped content")
-                await self._chunk_search_results(search_response, query)
+                await self.chunker_provider.chunk_search_results(search_response, query)
 
             # Calculate total pipeline time
             search_time = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -128,48 +122,6 @@ class CustomRAG(BaseWebRAG):
             logger.error(error_msg)
             raise Exception(error_msg)
 
-    async def _scrape_search_results(self, search_response: SearchResult) -> None:
-        """
-        Scrape content from URLs in search results.
-
-        Args:
-            search_response: SearchResult with URLs to scrape
-        """
-        urls_to_scrape = [result.url for result in search_response.results]
-        logger.info(f"Scraping {len(urls_to_scrape)} URLs")
-
-        max_concurrent_scrapes = settings.web_scrape_max_concurrent_urls
-        scraped_contents = await self.scraper_provider.scrape_urls(
-            urls_to_scrape, max_concurrent=max_concurrent_scrapes
-        )
-
-        # Map scraped content back to results
-        content_map = {scraped.url: scraped.content for scraped in scraped_contents}
-        for result in search_response.results:
-            result.content = content_map.get(result.url)
-
-        # Log scraping summary
-        successful_scrapes = len([c for c in scraped_contents if c.content])
-        logger.info(f"Successfully scraped {successful_scrapes}/{len(urls_to_scrape)} URLs")
-
-    async def _chunk_search_results(self, search_result: SearchResult, query: str) -> None:
-        """
-        Chunk the content in search results using configured chunker.
-
-        Args:
-            search_result: SearchResult with content to chunk
-            query: Original query for relevance ranking
-        """
-        logger.info(f"Chunking content for {len(search_result.results)} search results")
-
-        for result in search_result.results:
-            if result.content:
-                chunks = await self.chunker_provider.chunk_text(result.content)
-                # Rank chunks by relevance and limit chunks per source
-                ranked_chunks = self.chunker_provider.rank_chunks(chunks, query)
-                ranked_chunks = ranked_chunks[: settings.chunk_max_chunks_per_source]
-                result.relevant_chunks = " [...] ".join(ranked_chunks)
-                logger.debug(f"Created {len(ranked_chunks)} chunks for {result.url}")
 
     async def check_availability(self) -> bool:
         """
@@ -205,7 +157,7 @@ class CustomRAG(BaseWebRAG):
                     f"search={search_available}, scraper={scraper_available}, chunker={chunker_available}"
                 )
             else:
-                logger.info("CustomRAG all components available")
+                logger.debug("CustomRAG all components available")
 
             return all_available
 

@@ -7,7 +7,8 @@ following the same modular pattern as the web search and scraping components.
 
 from abc import ABC, abstractmethod
 from typing import List
-
+from .types import SearchResult, WebPageContent
+from ..core.settings import settings
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -61,19 +62,30 @@ class BaseWebChunker(ABC):
         # For now, return chunks in original order
         return chunks
 
-    def chunk_texts_batch(self, texts: List[str], **kwargs) -> List[List[str]]:
+    
+    async def chunk_search_results(self, search_result: SearchResult, query: str) -> SearchResult:
         """
-        Chunk multiple texts (synchronous version for simplicity).
-
+        Chunk the content in search results using the configured chunking strategy.
+        
         Args:
-            texts: List of texts to chunk
-            **kwargs: Additional parameters for chunking algorithms
-
+            search_result: SearchResult object with content to chunk
+            query: Original query for relevance ranking
+            
         Returns:
-            List of lists containing text chunks for each input text
+            SearchResult with chunked content populated
         """
-        logger.debug(f"Batch chunking {len(texts)} texts with {self.chunker_name}")
-        return [self.chunk_text(text, **kwargs) for text in texts]
+        logger.info(f"Chunking content for {len(search_result.results)} search results")
+        
+        for result in search_result.results:
+            if result.content:
+                chunks = await self.chunk_text(result.content)
+                # Rank chunks by relevance and limit chunks per source
+                ranked_chunks = self.rank_chunks(chunks, query)
+                ranked_chunks = ranked_chunks[:settings.chunk_max_chunks_per_source]  
+                result.relevant_chunks = " [...] ".join(ranked_chunks)
+                logger.debug(f"Selected {len(ranked_chunks)}/{len(chunks)} chunks for {result.url}. {sum(len(s) for s in ranked_chunks)}/{sum(len(s) for s in chunks)} characters included.")
+                
+        return search_result
 
     def validate_parameters(self) -> bool:
         """
@@ -98,26 +110,3 @@ class BaseWebChunker(ABC):
 
         return True
 
-    async def chunk_search_results(self, search_result: "SearchResult", query: str) -> "SearchResult":
-        """
-        Chunk the content in search results using the configured chunking strategy.
-        
-        Args:
-            search_result: SearchResult object with content to chunk
-            query: Original query for relevance ranking
-            
-        Returns:
-            SearchResult with chunked content populated
-        """
-        logger.info(f"Chunking content for {len(search_result.results)} search results")
-        
-        for result in search_result.results:
-            if result.content:
-                chunks = await self.chunk_text(result.content)
-                # Rank chunks by relevance and limit chunks per source
-                ranked_chunks = self.rank_chunks(chunks, query)
-                ranked_chunks = ranked_chunks[:5]  # Default limit, could be configurable
-                result.relevant_chunks = " [...] ".join(ranked_chunks)
-                logger.debug(f"Selected {len(ranked_chunks)} chunks for {result.url}")
-                
-        return search_result
