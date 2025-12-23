@@ -5,12 +5,13 @@ This module provides the abstract base class for text chunking algorithms,
 following the same modular pattern as the web search and scraping components.
 """
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import List
 
 from ..core.logging import get_logger
 from ..core.settings import settings
-from .types import SearchResult
+from .types import SearchResult, WebPageContent
 
 logger = get_logger(__name__)
 
@@ -67,27 +68,37 @@ class BaseWebChunker(ABC):
         self, search_result: SearchResult, query: str
     ) -> SearchResult:
         """
-        Chunk the content in search results using the configured chunking strategy.
-
-        Args:
-            search_result: SearchResult object with content to chunk
-            query: Original query for relevance ranking
-
-        Returns:
-            SearchResult with chunked content populated
+        Chunk the content in search results concurrently.
         """
-        logger.info(f"Chunking content for {len(search_result.results)} search results")
+        logger.info(
+            f"Chunking content for {len(search_result.results)} search results concurrently"
+        )
 
-        for result in search_result.results:
-            if result.content:
+        async def process_and_update(result: WebPageContent) -> None:
+            if not result.content:
+                return
+            try:
                 chunks = await self.chunk_text(result.content)
-                # Rank chunks by relevance and limit chunks per source
                 ranked_chunks = self.rank_chunks(chunks, query)
                 ranked_chunks = ranked_chunks[: settings.chunk_max_chunks_per_source]
                 result.relevant_chunks = " [...] ".join(ranked_chunks)
                 logger.debug(
-                    f"Selected {len(ranked_chunks)}/{len(chunks)} chunks for {result.url}. {sum(len(s) for s in ranked_chunks)}/{sum(len(s) for s in chunks)} characters included."
+                    f"Selected {len(ranked_chunks)}/{len(chunks)} chunks for {result.url}. "
+                    f"{sum(len(s) for s in ranked_chunks)}/{sum(len(s) for s in chunks)} characters included."
                 )
+            except Exception as e:
+                logger.error(f"Failed to chunk content for {result.url}: {e}")
+                result.relevant_chunks = None
+
+        tasks = [
+            process_and_update(result)
+            for result in search_result.results
+            if result.content
+        ]
+
+        # 3. Run all tasks concurrently and wait for them to complete.
+        if tasks:
+            await asyncio.gather(*tasks)
 
         return search_result
 

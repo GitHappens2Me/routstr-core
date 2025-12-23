@@ -55,36 +55,17 @@ class DefaultWebScraper(BaseWebScraper):
 
     def __init__(self) -> None:
         super().__init__()
-        self.client_timeout: httpx.Timeout = httpx.Timeout(3.0, connect=3.0)
-        self.client_headers: dict = {
-            "Accept": "text/html, text/plain",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        }
-        self.client_redirects: bool = True
 
-        self.client: Optional[httpx.AsyncClient] = None
-
-    async def get_client(self) -> httpx.AsyncClient:
-        """Ensures the httpx client is created and open."""
-        if self.client is None or self.client.is_closed:
-            self.client = httpx.AsyncClient(
-                timeout=self.client_timeout,
-                headers=self.client_headers,
-                follow_redirects=self.client_redirects,
-            )
-        return self.client
-
-    async def scrape_url(self, url: str) -> Optional[str]:
-        """Scrape content from a single URL."""
-        client = await self.get_client()
+    async def scrape_url(self, url: str, client: httpx.AsyncClient) -> Optional[str]:
+        """Scrape content from a single URL using provided client."""
         try:
             # 1. Reject URLs that are too long
             if len(url) >= 200:
                 raise ScrapeFailureError(f"Rejected: URL too long ({len(url)} chars)")
 
-            # 2. Make the HTTP GET request
+            # 2. Make the HTTP GET request using provided client
             response = await client.get(url)
-            # print(response)
+
             # 3. Validate MIME type from headers
             content_type = response.headers.get("content-type", "").lower()
             if not content_type.startswith(("text/html", "text/plain")):
@@ -134,23 +115,29 @@ class DefaultWebScraper(BaseWebScraper):
         self, webpages: List[WebPageContent], max_concurrent: int = 10
     ) -> List[WebPageContent]:
         """
-        Scrapes multiple URLs concurrently using asyncio.gather and a semaphore.
+        Scrapes multiple URLs concurrently using a shared client and asyncio.gather.
         """
-        # TODO:  define this globally in init?
-        semaphore = asyncio.Semaphore(max_concurrent)
+        # Create shared client for all requests in this batch
+        async with httpx.AsyncClient(
+            timeout=self.client_timeout,
+            headers=self.client_headers,
+            follow_redirects=self.client_redirects,
+        ) as client:
+            # Use semaphore to control concurrency
+            semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def scrape_single_page(webpage: WebPageContent) -> WebPageContent:
-            """Wraps the scraping of a single page with the semaphore."""
-            async with semaphore:
-                content = await self.scrape_url(webpage.url)
-                webpage.content = content
-                return webpage
+            async def scrape_single_page(webpage: WebPageContent) -> WebPageContent:
+                """Wraps the scraping of a single page with the semaphore."""
+                async with semaphore:
+                    content = await self.scrape_url(webpage.url, client)
+                    webpage.content = content
+                    return webpage
 
-        # Create a list of tasks to run concurrently
-        tasks = [scrape_single_page(page) for page in webpages]
+            # Create a list of tasks to run concurrently
+            tasks = [scrape_single_page(page) for page in webpages]
 
-        # Wait for all tasks to complete, returning exceptions in the results list
-        scraped_webpages = await asyncio.gather(*tasks, return_exceptions=True)
+            # Wait for all tasks to complete, returning exceptions in the results list
+            scraped_webpages = await asyncio.gather(*tasks, return_exceptions=True)
 
         successful_results = []
         for page in scraped_webpages:
@@ -300,8 +287,3 @@ class DefaultWebScraper(BaseWebScraper):
             }
         except Exception as e:
             return {"error": f"trafilatura failed: {str(e)}"}
-
-    async def close(self) -> None:
-        """Close the httpx client."""
-        if self.client:
-            await self.client.aclose()

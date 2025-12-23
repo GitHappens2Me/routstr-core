@@ -5,8 +5,6 @@ This module provides a WebSearchProvider implementation that uses the Serper API
 to get search results and formats them into the standard WebSearchResponse.
 """
 
-import http.client
-import json
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -32,6 +30,9 @@ class SerperWebSearch(BaseWebSearch):
             api_key: The Serper API key.
         """
 
+        super().__init__()
+
+        self.base_url = "https://google.serper.dev"
         # 2. Now, do the Serper-specific initialization.
         if not api_key:
             raise ValueError("Serper API key cannot be empty.")
@@ -49,10 +50,13 @@ class SerperWebSearch(BaseWebSearch):
 
         try:
             # --- MOCK DATA FOR TESTING ---
-            api_response = await self._load_mock_data("serper_trump-peace-plan.json")
+            api_response = await self._load_mock_data(
+                "serper_trump-peace-plan.json"
+                # serper_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150343.json
+            )
             # ---------------------------------------------------------------
             # api_response = await self._call_serper_api(query, max_results)
-            # await self._save_api_response(api_response, query, "exa")
+            # await self._save_api_response(api_response, query, "serper")
             # ---------------------------------------------------------------
 
             # Parse the results from the API response
@@ -125,29 +129,15 @@ class SerperWebSearch(BaseWebSearch):
         """
 
         logger.debug(f"Making Serper API call for: '{query}'")
-        print("maximum results: ", max_results)
         # Prepare Serper API request
-        # TODO: Move this to an persistant connection on startup?
-        conn = http.client.HTTPSConnection("google.serper.dev")
-
-        payload = {"q": query, "num": max_results}
 
         headers = {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
 
-        # Make the API request
-        conn.request("POST", "/search", json.dumps(payload), headers)
-        res = conn.getresponse()
-        data = res.read()
-        conn.close()
+        payload = {"q": query, "num": max_results}
 
-        # Parse the response
-        api_response = json.loads(data.decode("utf-8"))
-
-        if res.status != 200:
-            error_msg = api_response.get(
-                "error", f"Serper API returned status {res.status}"
-            )
-            logger.error(f"Serper API error: {error_msg}")
-            raise Exception(f"Serper API error: {error_msg}")
-
-        return api_response
+        return await self.make_request(
+            method="POST",
+            endpoint="/search",
+            headers=headers,
+            payload=payload,
+        )

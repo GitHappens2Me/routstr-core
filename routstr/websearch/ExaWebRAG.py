@@ -6,7 +6,6 @@ Exa delivers intelligent web search with embeddings-based ranking, content extra
 and highlight generation optimized for AI context enhancement.
 """
 
-import http.client
 import json
 from datetime import datetime, timezone
 from typing import Any, Dict
@@ -35,18 +34,14 @@ class ExaWebRAG(BaseWebRAG):
         Raises:
             ValueError: If API key is empty or None
         """
+        super().__init__()
+
+        self.base_url = "https://api.exa.ai"
+
         if not api_key:
             raise ValueError("Exa API key cannot be empty.")
         self.api_key = api_key
         logger.info("ExaWebRAG initialized.")
-
-        # TODO: Maybe use a persitant connection:
-        # How to handle graceful shutdown?
-        # self.client = httpx.AsyncClient(
-        #    base_url="https://api.exa.ai",
-        #    headers={'x-api-key': self.api_key},
-        #    timeout=30.0  # Good practice to set a default timeout
-        # )
 
     async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
         """
@@ -69,6 +64,7 @@ class ExaWebRAG(BaseWebRAG):
             # --- MOCK DATA FOR TESTING ---
             api_response = await self._load_mock_data(
                 "exa_what_is_the_latest_news_about_the_Donald_Trump_peace_deal_Which_websites_did_you_search_be_brief_20251219_163302.json"
+                # exa_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_145745.json
             )
             # ---------------------------------------------------------------
             # api_response = await self._call_exa_api(query, max_results)
@@ -153,10 +149,6 @@ class ExaWebRAG(BaseWebRAG):
 
         """
         logger.debug(f"Making live Exa API call for: '{query}'")
-        print("maximum results: ", max_results)
-        # Prepare Exa API request
-        # TODO: Move this to an persistant connection on startup?
-        conn = http.client.HTTPSConnection("api.exa.ai")
 
         # Exa request payload configured for neural search with context
         payload = {
@@ -192,22 +184,12 @@ class ExaWebRAG(BaseWebRAG):
         headers = {"Content-Type": "application/json", "x-api-key": self.api_key}
 
         # Make the API request
-        conn.request("POST", "/search", json.dumps(payload), headers)
-        res = conn.getresponse()
-        data = res.read()
-        conn.close()
-
-        # Parse the response
-        api_response = json.loads(data.decode("utf-8"))
-
-        if res.status != 200:
-            error_msg = api_response.get(
-                "error", f"Exa API returned status {res.status}"
-            )
-            logger.error(f"Exa API error: {error_msg}")
-            raise Exception(f"Exa API error: {error_msg}")
-
-        return api_response
+        return await self.make_request(
+            method="POST",
+            endpoint="/search",
+            headers=headers,
+            payload=payload,
+        )
 
     async def check_availability(
         self,

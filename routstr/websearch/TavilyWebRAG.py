@@ -6,7 +6,6 @@ Tavily offers an all-in-one solution combining web search, content extraction,
 and intelligent chunking specifically designed for AI context enhancement.
 """
 
-import http.client
 import json
 from datetime import datetime, timezone
 from typing import Any, Dict
@@ -37,8 +36,11 @@ class TavilyWebRAG(BaseWebRAG):
             api_key: The Tavily API key for authentication
 
         Raises:
-            ValueError: If API key is empty or None
+            ValueError: If API key  is empty or None
         """
+        super().__init__()
+
+        self.base_url = "https://api.tavily.com"
 
         if not api_key:
             raise ValueError("Tavily API key cannot be empty.")
@@ -70,6 +72,7 @@ class TavilyWebRAG(BaseWebRAG):
             # --- MOCK DATA FOR TESTING  ---
             api_response = await self._load_mock_data(
                 "tavily_what_is_the_latest_news_about_the_Donald_Trump_peace_deal_Which_websites_did_you_search_be_brief.json"
+                # tavily_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150031.json
             )
             # ---------------------------------------------------------------
             # api_response = await self._call_tavily_api(query, max_results)
@@ -139,7 +142,6 @@ class TavilyWebRAG(BaseWebRAG):
             logger.error(error_msg)
             raise Exception(error_msg)
 
-    # TODO: http.client.HTTPSConnection is not asynchronous
     async def _call_tavily_api(
         self, query: str, max_results: int = 10
     ) -> Dict[str, Any]:
@@ -161,10 +163,6 @@ class TavilyWebRAG(BaseWebRAG):
         """
         logger.debug(f"Making live Tavily API call for: '{query}'")
 
-        # Prepare Tavily API request
-        # TODO: Move this to an persistant connection on startup?
-        conn = http.client.HTTPSConnection("api.tavily.com")
-
         # Tavily request payload with all-in-one RAG parameters
         payload = {
             "query": query,
@@ -184,24 +182,13 @@ class TavilyWebRAG(BaseWebRAG):
         }
 
         # Make the API request
-        conn.request("POST", "/search", json.dumps(payload), headers)
-        res = conn.getresponse()
-        data = res.read()
-        conn.close()
+        return await self.make_request(
+            method="POST",
+            endpoint="/search",
+            headers=headers,
+            payload=payload,
+        )
 
-        # Parse the response
-        api_response = json.loads(data.decode("utf-8"))
-
-        if res.status != 200:
-            error_msg = api_response.get(
-                "error", f"Tavily API returned status {res.status}"
-            )
-            logger.error(f"Tavily API error: {error_msg}")
-            raise Exception(f"Tavily API error: {error_msg}")
-
-        return api_response
-
-    # TODO: http.client.HTTPSConnection is not asynchronous
     async def check_availability(
         self,
     ) -> bool:
@@ -218,40 +205,17 @@ class TavilyWebRAG(BaseWebRAG):
         """
         logger.info("Checking Tavily API availability")
 
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+        }
+
         try:
-            # Prepare Tavily API request
-            # TODO: Move this to an persistant connection on startup?
-            conn = http.client.HTTPSConnection("api.tavily.com")
-
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-            }
-
-            # Make the API request
-            conn.request("GET", "/usage", body=None, headers=headers)
-            res = conn.getresponse()
-            data = res.read()
-            conn.close()
-
-            # Parse the response
-            api_response = json.loads(data.decode("utf-8"))
-
-            logger.debug(f"Tavily usage endpoint response: {api_response}")
-
-            if res.status != 200:
-                error_msg = api_response.get(
-                    "error", f"Tavily API not available: {res.status}"
-                )
-                logger.error(f"Tavily availability check failed: {error_msg}")
-                return False
-
-            logger.info("Tavily API availability check completed succesfully")
+            await self.make_request(
+                method="GET",
+                endpoint="/usage",
+                headers=headers,
+            )
             return True
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Tavily availability check failed - JSON decode error: {e}")
-            return False
         except Exception as e:
-            logger.error(f"Tavily availability check failed - unexpected error: {e}")
+            logger.error(f"Tavily availability check failed: {e}")
             return False

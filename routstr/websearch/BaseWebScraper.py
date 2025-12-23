@@ -12,7 +12,10 @@ import re
 from datetime import datetime
 from typing import List, Optional
 
+import httpx
+
 from ..core.logging import get_logger
+from ..core.settings import settings
 from .types import SearchResult, WebPageContent
 
 logger = get_logger(__name__)
@@ -34,12 +37,19 @@ class BaseWebScraper:
         # Create the output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
 
-    async def scrape_url(self, url: str) -> Optional[str]:
+        self.client_timeout: httpx.Timeout = httpx.Timeout(3.0, connect=3.0)
+        self.client_headers: dict = {
+            "Accept": "text/html, text/plain",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        }
+        self.client_redirects: bool = True
+
+    async def scrape_url(self, url: str, client: httpx.AsyncClient) -> Optional[str]:
         """Scrape content from a single URL."""
         raise NotImplementedError("Subclasses must implement scrape_url method")
 
     async def scrape_webpages(
-        self, webpages: List[WebPageContent], max_concurrent: int = 3
+        self, webpages: List[WebPageContent], max_concurrent: int = 10
     ) -> List[WebPageContent]:
         """Scrape multiple webpages concurrently."""
         raise NotImplementedError("Subclasses must implement scrape_webpages method")
@@ -66,7 +76,7 @@ class BaseWebScraper:
         num_pages_to_scrape = len(pages_to_scrape)
         logger.info(f"Scraping {num_pages_to_scrape} URLs from search results")
 
-        max_concurrent_scrapes = 10  # Default, could be configurable
+        max_concurrent_scrapes = settings.web_scrape_max_concurrent_urls
         start_time = datetime.now()
         scraped_webpages = await self.scrape_webpages(
             pages_to_scrape, max_concurrent=max_concurrent_scrapes
