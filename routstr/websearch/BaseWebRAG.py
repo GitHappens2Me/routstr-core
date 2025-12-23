@@ -7,17 +7,18 @@ AI context enhancement.
 """
 
 import json
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-from .types import SearchResult, WebPageContent
+from typing import Any, Dict
+
 from ..core.logging import get_logger
+from .types import SearchResult
 
 logger = get_logger(__name__)
 
+
 class BaseWebRAG:
     """Base class for RAG providers.
-    
+
     Defines the interface for providers that handle the complete RAG pipeline in single unified API call.
     """
 
@@ -25,14 +26,14 @@ class BaseWebRAG:
 
     async def retrieve(self, query: str, max_results: int = 5) -> SearchResult:
         """Perform web retrieval
-        
+
         Args:
             query: The search query for retrieving relevant web content
             max_results: Maximum number of web sources to process
-            
+
         Returns:
             SearchResult with processed content, chunks, and metadata
-            
+
         Raises:
             NotImplementedError: Subclasses must implement this method
         """
@@ -40,13 +41,13 @@ class BaseWebRAG:
 
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:
         """Load mock API response data from local JSON file for testing purposes.
-        
+
         Args:
             file_name: Name of the JSON file containing mock response data
-            
+
         Returns:
             Dictionary containing mock API response data
-            
+
         """
         logger.debug("Using mock data from file.")
         from pathlib import Path
@@ -60,12 +61,12 @@ class BaseWebRAG:
         self, response_data: Dict[str, Any], query: str, provider: str
     ) -> None:
         """Save live API response to timestamped JSON file for debugging and testing.
-        
+
         Args:
             response_data: The API response dictionary to save
             query: The search query (used in filename generation)
             provider: Provider name (used in filename generation)
-            
+
         Note:
             Creates files in api_responses/ directory with timestamp and sanitized query
         """
@@ -93,18 +94,17 @@ class BaseWebRAG:
         except Exception as e:
             logger.error(f"Failed to save API response: {e}")
 
-
     async def check_availability(self) -> bool:
         """Check if the RAG provider service is available and API key is valid.
-        
+
         Performs a lightweight API call to verify:
         - Service accessibility
         - API key validity
         - Service operational status
-        
+
         Returns:
             True if provider is available and functional, False otherwise
-            
+
         Raises:
             NotImplementedError: Subclasses must implement this method
         """

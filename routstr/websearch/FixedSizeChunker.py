@@ -6,7 +6,6 @@ into chunks of a specified size with optional overlap. This is the simplest
 chunking approach and serves as a reliable fallback.
 """
 
-import asyncio
 from typing import List
 
 from ..core.logging import get_logger
@@ -20,7 +19,7 @@ class FixedSizeChunker(BaseWebChunker):
 
     chunker_name = "fixed"
 
-    def __init__(self, chunk_size: int = 100, chunk_overlap: int = 0):
+    def __init__(self, chunk_size: int = 100, chunk_overlap: int = 0) -> None:
         """
         Initialize the fixed-size chunker.
 
@@ -33,7 +32,7 @@ class FixedSizeChunker(BaseWebChunker):
         if not self.validate_parameters():
             raise ValueError(f"Invalid parameters for {self.chunker_name} chunker")
 
-    async def chunk_text(self, text: str, **kwargs) -> List[str]:
+    async def chunk_text(self, text: str) -> List[str]:
         """
         Chunk text into fixed-size pieces using a sliding window approach.
 
@@ -86,5 +85,3 @@ class FixedSizeChunker(BaseWebChunker):
                 start = self.chunk_size
 
         return chunks
-
-

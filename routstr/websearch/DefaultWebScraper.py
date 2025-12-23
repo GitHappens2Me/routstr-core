@@ -1,14 +1,12 @@
 import asyncio
-import os
-import re
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Optional
-from .types import SearchResult, WebPageContent
-from .BaseWebScraper import BaseWebScraper, ScrapeFailureError
+
 import httpx
 
 from ..core.logging import get_logger
+from .BaseWebScraper import BaseWebScraper, ScrapeFailureError
+from .types import WebPageContent
 
 logger = get_logger(__name__)
 
@@ -23,15 +21,16 @@ try:
     NEWSPAPER_AVAILABLE = True
     import logging
 
-    newspaper_logger = logging.getLogger('newspaper')
+    newspaper_logger = logging.getLogger("newspaper")
     newspaper_logger.setLevel(logging.WARNING)
-except ImportError as e :
+except ImportError as e:
     print(f"newspaper not imported: {e}")
     Article = None
 
 try:
     import trafilatura
-    trafilatura_logger = logging.getLogger('trafilatura')
+
+    trafilatura_logger = logging.getLogger("trafilatura")
     trafilatura_logger.setLevel(logging.WARNING)
     TRAFILATURA_AVAILABLE = True
 except ImportError:
@@ -40,41 +39,43 @@ except ImportError:
 
 try:
     from goose3 import Goose
-    goose3_logger = logging.getLogger('goose3')
+
+    goose3_logger = logging.getLogger("goose3")
     goose3_logger.setLevel(logging.WARNING)
     GOOSE_AVAILABLE = True
 except ImportError as e:
     print(f"goose not imported: {e}")
     Goose = None
 
+
 class DefaultWebScraper(BaseWebScraper):
     """Dummy web scraper for testing and development."""
 
     scraper_name = "default"
 
-    def __init__(self):
-        super().__init__() 
-
-        self._client_config = {
-            "timeout": httpx.Timeout(3.0, connect=3.0),
-            "headers": {
-                "Accept": "text/html, text/plain",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            },
-            "follow_redirects": True,
+    def __init__(self) -> None:
+        super().__init__()
+        self.client_timeout: httpx.Timeout = httpx.Timeout(3.0, connect=3.0)
+        self.client_headers: dict = {
+            "Accept": "text/html, text/plain",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         }
+        self.client_redirects: bool = True
+
         self.client: Optional[httpx.AsyncClient] = None
 
     async def get_client(self) -> httpx.AsyncClient:
         """Ensures the httpx client is created and open."""
         if self.client is None or self.client.is_closed:
-            self.client = httpx.AsyncClient(**self._client_config)
+            self.client = httpx.AsyncClient(
+                timeout=self.client_timeout,
+                headers=self.client_headers,
+                follow_redirects=self.client_redirects,
+            )
         return self.client
-
 
     async def scrape_url(self, url: str) -> Optional[str]:
         """Scrape content from a single URL."""
-        start_time = datetime.now()
         client = await self.get_client()
         try:
             # 1. Reject URLs that are too long
@@ -126,9 +127,8 @@ class DefaultWebScraper(BaseWebScraper):
             else:
                 logger.error(f"An unexpected error occurred for {url}: {error_message}")
 
-            # 10. Return the error ScrapedContent object
+            # TODO: We could also throw the exceptions and handle them in scrape_webpages
             return None
-
 
     async def scrape_webpages(
         self, webpages: List[WebPageContent], max_concurrent: int = 10
@@ -136,7 +136,7 @@ class DefaultWebScraper(BaseWebScraper):
         """
         Scrapes multiple URLs concurrently using asyncio.gather and a semaphore.
         """
-        #TODO:  define this globally in init?
+        # TODO:  define this globally in init?
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def scrape_single_page(webpage: WebPageContent) -> WebPageContent:
@@ -148,18 +148,17 @@ class DefaultWebScraper(BaseWebScraper):
 
         # Create a list of tasks to run concurrently
         tasks = [scrape_single_page(page) for page in webpages]
-        
+
         # Wait for all tasks to complete, returning exceptions in the results list
         scraped_webpages = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        successful_results = [
-            page for page in scraped_webpages if page.content is not None
-        ]
-    
+
+        successful_results = []
+        for page in scraped_webpages:
+            if isinstance(page, WebPageContent) and page.content is not None:
+                successful_results.append(page)
         return successful_results
 
-
-    async def extract_content(self, raw_html, url): 
+    async def extract_content(self, raw_html: str, url: str) -> Optional[str]:
         start_time = datetime.now()
 
         # Define extractors in order of preference.
@@ -172,7 +171,6 @@ class DefaultWebScraper(BaseWebScraper):
         if NEWSPAPER_AVAILABLE:
             extractors.append(("Newspaper", self.extract_with_newspaper))
 
-
         try:
             for name, extractor_func in extractors:
                 try:
@@ -182,24 +180,32 @@ class DefaultWebScraper(BaseWebScraper):
                     # Check if the function returned a valid result (no 'error' key)
                     if result and "error" not in result and result.get("content"):
                         content = result["content"].strip()
-                        title = result.get("title", "No title found")
-                        
-                        #logger.info(f"Successfully extracted content with {name} for {url}. Title: '{title}'")
-                        
+                        # logger.info(f"Successfully extracted content with {name} for {url}. Title: '{title}'")
+
                         await self._write_to_file(f"{name.lower()}_{url}", content)
                         return content
 
                 except Exception as e:
                     # This catches unexpected errors from the orchestrator itself,
                     # though the individual functions should handle their own.
-                    logger.warning(f"Unexpected error during {name} extraction for {url}: {e}")
+                    logger.warning(
+                        f"Unexpected error during {name} extraction for {url}: {e}"
+                    )
                     continue
 
             # If all extraction methods failed, return raw HTML as a fallback
-            logger.warning(f"All extraction methods failed for {url}. Returning raw HTML as fallback.")
+            logger.warning(
+                f"All extraction methods failed for {url}. Returning raw HTML as fallback."
+            )
+            # TODO: limit html size / dont add html content and just add no content?
             return raw_html
 
-        except (httpx.TimeoutException, httpx.RequestError, ScrapeFailureError, Exception) as e:
+        except (
+            httpx.TimeoutException,
+            httpx.RequestError,
+            ScrapeFailureError,
+            Exception,
+        ) as e:
             # Centralized error handling for network or critical failures
             error_type = type(e).__name__
             logger.error(f"Scraping failed for {url} ({error_type}): {e}")
@@ -208,9 +214,9 @@ class DefaultWebScraper(BaseWebScraper):
         finally:
             # Log timing for both success and failure
             scrape_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            logger.debug(f"Scraping attempt for {url[:20]}.. completed in {scrape_time_ms}ms")
-
-
+            logger.debug(
+                f"Scraping attempt for {url[:20]}.. completed in {scrape_time_ms}ms"
+            )
 
     def extract_with_goose3(self, html_content: str, url: str) -> dict:
         """
@@ -247,6 +253,7 @@ class DefaultWebScraper(BaseWebScraper):
             return {"error": "newspaper not available"}
 
         try:
+            # TODO: Dont scrape again
             from newspaper.configuration import Configuration
 
             # Create a config object to prevent newspaper from making its own network request
@@ -296,4 +303,5 @@ class DefaultWebScraper(BaseWebScraper):
 
     async def close(self) -> None:
         """Close the httpx client."""
-        await self.client.aclose()
+        if self.client:
+            await self.client.aclose()

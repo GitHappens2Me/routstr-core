@@ -12,9 +12,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from ..core.logging import get_logger
-
 from .BaseWebRAG import BaseWebRAG
 from .types import SearchResult, WebPageContent
+
 logger = get_logger(__name__)
 
 
@@ -31,7 +31,7 @@ class ExaWebRAG(BaseWebRAG):
 
         Args:
             api_key: The Exa API key for authentication
-            
+
         Raises:
             ValueError: If API key is empty or None
         """
@@ -51,14 +51,14 @@ class ExaWebRAG(BaseWebRAG):
     async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
         """
         Perform RAG retrieval using Exa's neural search API.
-        
+
         Args:
             query: The search query for retrieving relevant web content
             max_results: Maximum number of web sources to process (max 10 recommended)
-            
+
         Returns:
             SearchResult with neural-ranked content, extracted highlights, and metadata
-            
+
         Raises:
             Exception: If API call fails or response parsing fails
         """
@@ -144,13 +144,13 @@ class ExaWebRAG(BaseWebRAG):
         Args:
             query: The search query
             max_results: Maximum number of results to return
-            
+
         Returns:
             Dictionary containing the complete Exa API response
-            
+
         Raises:
             Exception: If API call fails or returns non-200 status
-            
+
         """
         logger.debug(f"Making live Exa API call for: '{query}'")
         print("maximum results: ", max_results)
@@ -214,11 +214,11 @@ class ExaWebRAG(BaseWebRAG):
     ) -> bool:
         """
         Verify Exa service availability and API key validity.
-        
+
         Returns:
             True if basic validation passes, False otherwise
-            
+
         """
         # TODO: How can we check Exa availability without using tokens (/usage endpoint not supported)
-        # Currently just returns True as placeholder 
+        # Currently just returns True as placeholder
         return True

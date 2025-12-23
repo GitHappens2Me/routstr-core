@@ -4,12 +4,11 @@ Base class for Web search for AI context enhancement using Retrieval Augmented G
 """
 
 import json
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
-from .types import SearchResult
 from ..core.logging import get_logger
+from .types import SearchResult
 
 logger = get_logger(__name__)
 
@@ -18,6 +17,11 @@ class BaseWebSearch:
     """Base class for web search providers."""
 
     provider_name: str = "Base"
+
+    # TODO: Only for typechecking?
+    def __init__(self) -> None:
+        """Initialize the base web search provider."""
+        pass
 
     async def search(self, query: str, max_results: int = 5) -> SearchResult:
         """Perform web search and return results."""

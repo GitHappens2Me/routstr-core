@@ -9,21 +9,18 @@ for testing and development.
 import asyncio
 import os
 import re
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import List, Optional, Tuple
-from .types import SearchResult, WebPageContent
-import httpx
+from datetime import datetime
+from typing import List, Optional
 
 from ..core.logging import get_logger
-
-
+from .types import SearchResult, WebPageContent
 
 logger = get_logger(__name__)
 
 
 class ScrapeFailureError(Exception):
     """Custom exception for controlled scraping failures."""
+
     pass
 
 
@@ -41,33 +38,34 @@ class BaseWebScraper:
         """Scrape content from a single URL."""
         raise NotImplementedError("Subclasses must implement scrape_url method")
 
-
     async def scrape_webpages(
         self, webpages: List[WebPageContent], max_concurrent: int = 3
     ) -> List[WebPageContent]:
         """Scrape multiple webpages concurrently."""
         raise NotImplementedError("Subclasses must implement scrape_webpages method")
 
-
-    async def scrape_search_results(self, search_result: SearchResult) -> SearchResult:
+    # TODO: return SearchResult or modify in place?
+    # I think returning a new obj would be better
+    # Currently in place
+    async def scrape_search_results(self, search_result: SearchResult) -> None:
         """
         Scrape content from URLs in a SearchResult object.
-        
+
         Args:
             search_result: SearchResult object with URLs to scrape
-            
+
         Returns:
             SearchResult with scraped content populated
         """
         if not search_result.results:
+            # TODO: better logging
             logger.warning("No results to scrape")
-            return search_result
-            
+            return
+
         pages_to_scrape = search_result.results
         num_pages_to_scrape = len(pages_to_scrape)
         logger.info(f"Scraping {num_pages_to_scrape} URLs from search results")
-        
-        
+
         max_concurrent_scrapes = 10  # Default, could be configurable
         start_time = datetime.now()
         scraped_webpages = await self.scrape_webpages(
@@ -90,8 +88,6 @@ class BaseWebScraper:
                 }
             },
         )
-        
-
 
     def _sanitize_filename(self, url: str) -> str:
         """Create a safe filename from a URL."""

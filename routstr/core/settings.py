@@ -77,7 +77,7 @@ class Settings(BaseSettings):
 
     # Web Search / RAG
     enable_web_search: bool = Field(default=False, env="ENABLE_WEB_SEARCH")
-    
+
     web_rag_provider: str = Field(default="", env="WEB_RAG_PROVIDER")
     web_search_provider: str = Field(default="serper", env="WEB_SEARCH_PROVIDER")
     web_scraper_provider: str = Field(default="default", env="WEB_SCRAPER_PROVIDER")

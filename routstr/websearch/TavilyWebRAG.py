@@ -12,16 +12,16 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from ..core.logging import get_logger
-
 from .BaseWebRAG import BaseWebRAG
 from .types import SearchResult, WebPageContent
+
 logger = get_logger(__name__)
 
 
 class TavilyWebRAG(BaseWebRAG):
     """
     All-in-one RAG provider using the Tavily API for intelligent web content retrieval.
-    
+
     Tavily handles the complete pipeline: web search, content extraction,
     relevance ranking, and chunking in a single API call, making it ideal
     for Retrieval Augmented Generation use cases.
@@ -35,7 +35,7 @@ class TavilyWebRAG(BaseWebRAG):
 
         Args:
             api_key: The Tavily API key for authentication
-            
+
         Raises:
             ValueError: If API key is empty or None
         """
@@ -49,17 +49,17 @@ class TavilyWebRAG(BaseWebRAG):
     async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
         """
         Perform complete RAG pipeline using Tavily's all-in-one API.
-        
+
         Executes web search, content extraction, and chunking in a single call
         to Tavily's advanced search endpoint with RAG-optimized parameters.
 
         Args:
             query: The search query for retrieving relevant web content
             max_results: Maximum number of web sources to process (max 10 for Tavily)
-            
+
         Returns:
             SearchResult with processed content, pre-chunked highlights, and metadata
-            
+
         Raises:
             Exception: If API call fails or response parsing fails
         """
@@ -138,7 +138,6 @@ class TavilyWebRAG(BaseWebRAG):
             )
             logger.error(error_msg)
             raise Exception(error_msg)
-        
 
     # TODO: http.client.HTTPSConnection is not asynchronous
     async def _call_tavily_api(
@@ -150,13 +149,13 @@ class TavilyWebRAG(BaseWebRAG):
         Args:
             query: The search query
             max_results: Maximum number of results to return (max 10)
-            
+
         Returns:
             Dictionary containing the complete Tavily API response
-            
+
         Raises:
             Exception: If API call fails or returns non-200 status
-            
+
         Note:
             Uses advanced search depth with chunking enabled for optimal RAG performance
         """
@@ -208,7 +207,7 @@ class TavilyWebRAG(BaseWebRAG):
     ) -> bool:
         """
         Verify Tavily service availability and API key validity.
-        
+
         Makes a lightweight call to Tavily's usage endpoint to confirm:
         - Service is accessible and operational
         - API key is valid and authorized
@@ -237,9 +236,9 @@ class TavilyWebRAG(BaseWebRAG):
 
             # Parse the response
             api_response = json.loads(data.decode("utf-8"))
-                        
+
             logger.debug(f"Tavily usage endpoint response: {api_response}")
-            
+
             if res.status != 200:
                 error_msg = api_response.get(
                     "error", f"Tavily API not available: {res.status}"
@@ -249,7 +248,7 @@ class TavilyWebRAG(BaseWebRAG):
 
             logger.info("Tavily API availability check completed succesfully")
             return True
-            
+
         except json.JSONDecodeError as e:
             logger.error(f"Tavily availability check failed - JSON decode error: {e}")
             return False

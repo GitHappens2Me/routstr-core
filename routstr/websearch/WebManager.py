@@ -4,14 +4,15 @@ from typing import Optional
 from ..core.logging import get_logger
 from ..core.settings import settings
 from .BaseWebChunker import BaseWebChunker
+from .BaseWebRAG import BaseWebRAG
 from .BaseWebScraper import BaseWebScraper
 from .BaseWebSearch import BaseWebSearch, SearchResult
-from .BaseWebRAG import BaseWebRAG
 from .CustomRAG import CustomRAG
 
 logger = get_logger(__name__)
 
-# TODO: Add availibity check! 
+
+# TODO: Add availibity check!
 async def get_rag_provider() -> Optional[BaseWebRAG]:
     """
     Get RAG provider based on RAG_PROVIDER configuration.
@@ -42,7 +43,6 @@ async def get_rag_provider() -> Optional[BaseWebRAG]:
                         "Tavily availability check failed - service may be unavailable or API key invalid"
                     )
                     return None
-
 
                 logger.info("Using Tavily as RAG provider")
                 return tavily
@@ -83,18 +83,28 @@ async def get_rag_provider() -> Optional[BaseWebRAG]:
                 chunker_provider = get_web_chunker_provider()
 
                 if not search_provider:
-                    logger.warning("Custom RAG provider selected but no web search provider available")
+                    logger.warning(
+                        "Custom RAG provider selected but no web search provider available"
+                    )
                     return None
                 if not scraper_provider:
-                    logger.warning("Custom RAG provider selected but no web scraper provider available")
+                    logger.warning(
+                        "Custom RAG provider selected but no web scraper provider available"
+                    )
                     return None
                 if not chunker_provider:
-                    logger.warning("Custom RAG provider selected but no chunker provider available")
+                    logger.warning(
+                        "Custom RAG provider selected but no chunker provider available"
+                    )
                     return None
 
-                custom_rag = CustomRAG(search_provider, scraper_provider, chunker_provider)
+                custom_rag = CustomRAG(
+                    search_provider, scraper_provider, chunker_provider
+                )
                 if not await custom_rag.check_availability():
-                    logger.warning("Custom RAG availability check failed - some components may be unavailable")
+                    logger.warning(
+                        "Custom RAG availability check failed - some components may be unavailable"
+                    )
                     return None
 
                 logger.info("Using Custom RAG provider")
@@ -129,7 +139,7 @@ def get_web_search_provider() -> Optional[BaseWebSearch]:
             if not settings.serper_api_key:
                 logger.warning("Serper provider selected but no API key configured")
                 return None
-            #logger.info("Using Serper web search provider")
+            # logger.info("Using Serper web search provider")
             return SerperWebSearch(api_key=settings.serper_api_key)
         except ImportError as e:
             logger.error(f"Failed to import SerperWebSearch: {e}")
@@ -209,7 +219,7 @@ def get_web_chunker_provider() -> Optional[BaseWebChunker]:
 async def enhance_request_with_web_context(request_body: bytes) -> bytes:
     """
     Enhance AI request with web search context using configured RAG provider.
-    
+
     This method uses the unified RAG interface that handles the complete pipeline:
     - All-in-one providers (Tavily, Exa): Search + extract + chunk in one call
     - Custom provider: Manual pipeline with separate search, scrape, and chunk components
@@ -230,7 +240,6 @@ async def enhance_request_with_web_context(request_body: bytes) -> bytes:
 
         # Extract query from request
         extracted_query = _extract_query_from_request_body(request_body)
-        
 
         # Perform complete RAG pipeline (handles all complexity internally)
         max_web_searches = settings.web_search_max_results
@@ -252,53 +261,6 @@ async def enhance_request_with_web_context(request_body: bytes) -> bytes:
         )
         return request_body
 
-#TODO :remove
-async def _perform_web_search_and_scraping(
-    search_provider: BaseWebSearch,
-    scraper_provider: BaseWebScraper,
-    query: str,
-    max_web_searches: int,
-) -> SearchResult:
-    """Perform web search and scraping, returning search response with scraped content."""
-
-    # Perform search
-    search_response = await search_provider.search(query, max_web_searches)
-
-    # Scrape URLs from search results
-    if search_response.results:
-        urls_to_scrape = [result.url for result in search_response.results]
-        logger.info(f"Scraping {len(urls_to_scrape)} URLs")
-
-        max_concurrent_scrapes = settings.web_scrape_max_concurrent_urls
-        scraped_contents = await scraper_provider.scrape_webpage(
-            urls_to_scrape, max_concurrent=max_concurrent_scrapes
-        )
-
-        # Map scraped content back to results
-        content_map = {scraped.url: scraped.content for scraped in scraped_contents}
-        for result in search_response.results:
-            result.content = content_map.get(result.url)
-
-    return search_response
-
-
-# why is this here and not in the basechunker?
-async def _chunk_search_results(
-    search_result: SearchResult, chunker_provider: BaseWebChunker, query: str
-) -> None:
-    """Chunk the content in search results."""
-    logger.info(f"Chunking content for {len(search_result.results)} search results")
-
-    for result in search_result.results:
-        if result.content:
-            chunks = await chunker_provider.chunk_text(result.content)
-            # Rank chunks by relevance and limit chunks per source
-            ranked_chunks = chunker_provider.rank_chunks(chunks, query)
-            ranked_chunks = ranked_chunks[: settings.chunk_max_chunks_per_source]
-            result.relevant_chunks = " [...] ".join(ranked_chunks)
-            logger.debug(
-                f"Created {len(result.relevant_chunks)} chunks for {result.url}"
-            )
 
 def _extract_query_from_request_body(request_body: bytes) -> str:
     """
@@ -392,4 +354,3 @@ async def _inject_web_context_into_request(
     except Exception as e:
         logger.error(f"Unexpected error during context injection: {e}")
         return request_body
-

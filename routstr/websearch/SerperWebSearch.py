@@ -64,7 +64,8 @@ class SerperWebSearch(BaseWebSearch):
                     url=item.get("link", "Unknown URL"),
                     summary=item.get("snippet", None),
                     publication_date=item.get("date", None),
-                    relevance_score=1.0 - (i * 0.1),  # Simple relevance based on position
+                    relevance_score=1.0
+                    - (i * 0.1),  # Simple relevance based on position
                     content=None,
                     relevant_chunks=None,
                 )

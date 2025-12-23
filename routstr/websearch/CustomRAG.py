@@ -7,15 +7,14 @@ Offers flexibility to use different providers for each pipeline stage.
 """
 
 from datetime import datetime, timezone
-from typing import List
 
 from ..core.logging import get_logger
 from ..core.settings import settings
-from .types import SearchResult, WebPageContent
-from .BaseWebRAG import BaseWebRAG
-from .BaseWebSearch import BaseWebSearch
 from .BaseWebChunker import BaseWebChunker
+from .BaseWebRAG import BaseWebRAG
 from .BaseWebScraper import BaseWebScraper
+from .BaseWebSearch import BaseWebSearch
+from .types import SearchResult
 
 logger = get_logger(__name__)
 
@@ -23,7 +22,7 @@ logger = get_logger(__name__)
 class CustomRAG(BaseWebRAG):
     """
     Manual RAG pipeline implementation using separate search, scraping, and chunking components.
-    
+
     Combines any web search provider, web scraper, and chunker to provide a complete
     RAG solution. Offers maximum flexibility for customizing each pipeline stage.
     """
@@ -96,7 +95,9 @@ class CustomRAG(BaseWebRAG):
                     results=[],
                     summary=None,
                     total_results=0,
-                    search_time_ms=int((datetime.now() - start_time).total_seconds() * 1000),
+                    search_time_ms=int(
+                        (datetime.now() - start_time).total_seconds() * 1000
+                    ),
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 )
 
@@ -121,7 +122,6 @@ class CustomRAG(BaseWebRAG):
             error_msg = f"CustomRAG pipeline failed for query '{query}': {e}"
             logger.error(error_msg)
             raise Exception(error_msg)
-
 
     async def check_availability(self) -> bool:
         """
