@@ -216,7 +216,7 @@ def get_web_chunker_provider() -> Optional[BaseWebChunker]:
         return None
 
 
-async def enhance_request_with_web_context(request_body: bytes) -> bytes:
+async def enhance_request_with_web_context(request_body: bytes) -> tuple[bytes, list[dict]]:
     """
     Enhance AI request with web search context using configured RAG provider.
 
@@ -228,7 +228,7 @@ async def enhance_request_with_web_context(request_body: bytes) -> bytes:
         request_body: The original request body as bytes
 
     Returns:
-        Enhanced request body with web context injected as bytes
+        Tuple of (Enhanced request body as bytes, List of source dictionaries)
     """
     try:
         # Get configured RAG provider (all-in-one or custom)
@@ -236,7 +236,7 @@ async def enhance_request_with_web_context(request_body: bytes) -> bytes:
 
         if not rag_provider:
             logger.warning("No RAG provider available, cannot enhance request")
-            return request_body
+            return request_body, []
 
         # Extract query from request
         extracted_query = _extract_query_from_request_body(request_body)
@@ -259,7 +259,7 @@ async def enhance_request_with_web_context(request_body: bytes) -> bytes:
                 "rag_provider": settings.web_rag_provider,
             },
         )
-        return request_body
+        return request_body, []
 
 
 def _extract_query_from_request_body(request_body: bytes) -> str:
@@ -289,11 +289,10 @@ def _extract_query_from_request_body(request_body: bytes) -> str:
         logger.warning(f"Failed to extract query from request body: {e}")
         return ""
 
-
 # TODO: If search_response is None: inject a short message telling the model that                                                            # TODO: Add type (move Dataclasses to webmanager)
 async def _inject_web_context_into_request(
     request_body: bytes, search_result: SearchResult, query: str
-) -> bytes:
+) -> tuple[bytes, list[dict]]:
     """
     Inject web search context into AI request, filtering out None values and empty content.
 
@@ -303,11 +302,11 @@ async def _inject_web_context_into_request(
         query: The search query used
 
     Returns:
-        Enhanced request body with web context injected as bytes
+        Tuple of (Enhanced request body as bytes, List of source dictionaries)
     """
 
     if not search_result:
-        return request_body
+        return request_body, []
 
     # Add number of results
     web_context = f"Websearch yielded {len(search_result.results)} relevant results.\n"
@@ -315,6 +314,9 @@ async def _inject_web_context_into_request(
     # Add optional summary
     if search_result.summary:
         web_context += f"Summary: '{search_result.summary}'\n"
+
+    # Prepare sources list for the response body
+    sources = []
 
     # Add results
     for i, web_page in enumerate(search_result.results, 1):
@@ -331,6 +333,14 @@ async def _inject_web_context_into_request(
 
         web_context += f"Relevant Sections: '{web_page.relevant_chunks}']\n"
 
+         
+        # We can also add the title:
+        #sources.append({
+        #   "title": web_page.title,
+        #   "url": web_page.url
+        #)
+
+        sources.append(web_page.url)
 
     # Parse and enhance the request
     try:
@@ -344,14 +354,15 @@ async def _inject_web_context_into_request(
         messages = request_data.get("messages", [])
         messages.append(web_context_message)
         request_data["messages"] = messages
+
         enhanced_request_body = json.dumps(request_data).encode("utf-8")
         logger.info(f"Successfully injected web context for query: '{query}'")
         #logger.debug(f"Enhanced Body: '{request_data}'")
-        return enhanced_request_body
+        return enhanced_request_body, sources
 
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse request body for context injection: {e}")
-        return request_body
+        return request_body, sources
     except Exception as e:
         logger.error(f"Unexpected error during context injection: {e}")
-        return request_body
+        return request_body, sources

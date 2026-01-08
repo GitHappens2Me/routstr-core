@@ -344,6 +344,7 @@ class BaseUpstreamProvider:
         key: ApiKey,
         max_cost_for_model: int,
         web_search_executed: bool = False,
+        sources: list[dict] | None = None,
     ) -> StreamingResponse:
         """Handle streaming chat completion responses with token usage tracking and cost adjustment.
 
@@ -397,7 +398,12 @@ class BaseUpstreamProvider:
                                 "balance_after_adjustment": fresh_key.balance,
                             },
                         )
-                        return f"data: {json.dumps({'cost': cost_data})}\n\n".encode()
+                        
+                        final_payload = {"cost": cost_data}
+                        if sources:
+                            final_payload["sources"] = sources
+                            
+                        return f"data: {json.dumps(final_payload)}\n\n".encode()
                     except Exception as cost_error:
                         logger.error(
                             "Error finalizing payment without usage",
@@ -483,7 +489,12 @@ class BaseUpstreamProvider:
                                                         "balance_after_adjustment": fresh_key.balance,
                                                     },
                                                 )
-                                                yield f"data: {json.dumps({'cost': cost_data})}\n\n".encode()
+                                                
+                                                final_payload = {"cost": cost_data}
+                                                if sources:
+                                                    final_payload["sources"] = sources
+                                                    
+                                                yield f"data: {json.dumps(final_payload)}\n\n".encode()
                                             except Exception as cost_error:
                                                 logger.error(
                                                     "Error adjusting payment for streaming tokens",
@@ -545,6 +556,7 @@ class BaseUpstreamProvider:
         session: AsyncSession,
         deducted_max_cost: int,
         web_search_executed: bool = False,
+        sources: list[dict] | None = None,
     ) -> Response:
         """Handle non-streaming chat completion responses with token usage tracking and cost adjustment.
 
@@ -588,6 +600,8 @@ class BaseUpstreamProvider:
                 key, response_json, session, deducted_max_cost
             )
             response_json["cost"] = cost_data
+            if sources:
+                response_json["sources"] = sources
 
             logger.info(
                 "Token adjustment completed for non-streaming",
@@ -685,11 +699,12 @@ class BaseUpstreamProvider:
         )
 
         web_search_executed = False
-        # Only search the web for chat completion 
+        sources = []
+        # Only search the web for chat completion
         if path.endswith("chat/completions") and transformed_body and settings.enable_web_search and enable_web_search:
             try:
                 logger.debug("Web search enabled and requested")
-                transformed_body = await enhance_request_with_web_context(
+                transformed_body, sources = await enhance_request_with_web_context(
                     transformed_body
                 )
                 web_search_executed = True
@@ -802,6 +817,7 @@ class BaseUpstreamProvider:
                         key,
                         max_cost_for_model,
                         web_search_executed=web_search_executed,
+                        sources=sources,
                     )
                     background_tasks = BackgroundTasks()
                     background_tasks.add_task(response.aclose)
@@ -817,6 +833,7 @@ class BaseUpstreamProvider:
                             session,
                             max_cost_for_model,
                             web_search_executed=web_search_executed,
+                            sources=sources,
                         )
                     finally:
                         await response.aclose()
