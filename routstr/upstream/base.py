@@ -685,7 +685,8 @@ class BaseUpstreamProvider:
         )
 
         web_search_executed = False
-        if transformed_body and settings.enable_web_search and enable_web_search:
+        # Only search the web for chat completion 
+        if path.endswith("chat/completions") and transformed_body and settings.enable_web_search and enable_web_search:
             try:
                 logger.debug("Web search enabled and requested")
                 transformed_body = await enhance_request_with_web_context(

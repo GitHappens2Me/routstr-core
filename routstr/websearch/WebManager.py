@@ -197,14 +197,14 @@ def get_web_chunker_provider() -> Optional[BaseWebChunker]:
             logger.error(f"Failed to import FixedSizeChunker: {e}")
             return None
     elif chunker_name == "recursive":
-        # try:
-        #    from .RecursiveCharacterChunker import RecursiveCharacterChunker
-        #    return RecursiveCharacterChunker(
-        #        chunk_size=settings.chunk_max_size,
-        #        chunk_overlap=settings.chunk_overlap
-        #    )
-        # except ImportError as e:
-        #    logger.error(f"Failed to import RecursiveCharacterChunker: {e}")
+        try:
+            from .RecursiveChunker import RecursiveChunker
+            return RecursiveChunker(
+                chunk_size=settings.chunk_max_size,
+                chunk_overlap=settings.chunk_overlap
+            )
+        except ImportError as e:
+            logger.error(f"Failed to import RecursiveCharacterChunker: {e}")
         return None
     elif chunker_name == "none":
         logger.info("No chunker configured. Chunking functionality disabled")
@@ -273,16 +273,18 @@ def _extract_query_from_request_body(request_body: bytes) -> str:
         Extracted query string or empty string if not found
     """
     try:
-        import json
-
         data = json.loads(request_body)
-
-        for message in data.get("messages", []):
+        messages = data.get("messages", [])
+        
+        # Iterate in reverse (from end to start)
+        for message in reversed(messages):
             if message.get("role") == "user":
                 content = message.get("content", "")
-                # Simple extraction - use the full user message as query
+                print(f"Extracted Query: {content}")
                 return content.strip()
+
         return ""
+
     except Exception as e:
         logger.warning(f"Failed to extract query from request body: {e}")
         return ""

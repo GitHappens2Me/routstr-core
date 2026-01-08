@@ -48,6 +48,7 @@ class SerperWebSearch(BaseWebSearch):
         start_time = datetime.now()
         logger.info(f"Performing Serper API search for: '{query}'")
 
+  
         try:
             # --- MOCK DATA FOR TESTING ---
             api_response = await self._load_mock_data(

@@ -63,9 +63,9 @@ class BaseWebChunker(ABC):
         Returns:
             List of chunks ranked by relevance (currently returns chunks as-is)
         """
-        print("top 5 chunks pre-ranking:")
-        for chunk in chunks[:5]:
-            print(chunk)
+        #print("top 5 chunks pre-ranking:")
+        #for chunk in chunks[:5]:
+        #    print(chunk)
             
         if not chunks or not query:
             return chunks
@@ -78,9 +78,9 @@ class BaseWebChunker(ABC):
         ranked_chunks = bm25.get_top_n(query_words, chunks, n=len(chunks))
 
 
-        print(f"top 5 chunks post-ranking with query {query}:")
-        for chunk in ranked_chunks[:5]:
-            print(chunk)
+        #print(f"top 5 chunks post-ranking with query {query}:")
+        #for chunk in ranked_chunks[:5]:
+        #    print(chunk)
         return ranked_chunks
 
     async def chunk_search_results(
