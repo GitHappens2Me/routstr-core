@@ -67,8 +67,8 @@ class BaseWebChunker(ABC):
         #for chunk in chunks[:5]:
         #    print(chunk)
             
-        if not chunks or not query:
-            return chunks
+        #if not chunks or not query:
+        #    return chunks
         
         corpus_words = [chunk.split() for chunk in chunks]
         query_words = query.split()

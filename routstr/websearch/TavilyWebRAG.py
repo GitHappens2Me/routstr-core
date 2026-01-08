@@ -66,24 +66,31 @@ class TavilyWebRAG(BaseWebRAG):
             Exception: If API call fails or response parsing fails
         """
         start_time = datetime.now()
+
+        logger.warning(
+                f"Tavily's limit of 400 characters exceeded with {len(query)} characters. Using only first 400 characters."
+            )
+        query = query[:400]
+
         logger.debug(f"Performing Tavily API search for: '{query}'")
 
         try:
             # --- MOCK DATA FOR TESTING  ---
             api_response = await self._load_mock_data(
                 "tavily_what_is_the_latest_news_about_the_Donald_Trump_peace_deal_Which_websites_did_you_search_be_brief.json"
-                # tavily_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150031.json
+                 #tavily_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150031.json
             )
             # ---------------------------------------------------------------
-            # api_response = await self._call_tavily_api(query, max_results)
-            # await self._save_api_response(api_response, query, "tavily")
+            #api_response = await self._call_tavily_api(query, max_results)
+            #await self._save_api_response(api_response, query, "tavily")
             # ---------------------------------------------------------------
 
+            #print(api_response)
             # Parse the results from Tavily response
             tavily_results = api_response.get("results", [])
             parsed_results = []
 
-            logger.debug(f"Tavily API response: {api_response}")
+            #logger.debug(f"Tavily API response: {api_response}")
             for i, web_page in enumerate(tavily_results):
                 result = WebPageContent(
                     title=web_page.get("title", "No Title"),

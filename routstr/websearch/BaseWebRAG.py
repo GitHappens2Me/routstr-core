@@ -151,7 +151,7 @@ class BaseWebRAG:
             "".join(c for c in query if c.isalnum() or c in (" ", "-", "_"))
             .rstrip()
             .replace(" ", "_")
-        )
+        )[:60]
         filename = f"{provider}_{safe_query}_{timestamp}.json"
         file_path = responses_dir / filename
 

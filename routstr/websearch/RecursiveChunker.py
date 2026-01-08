@@ -72,9 +72,9 @@ class RecursiveChunker(BaseWebChunker):
 
         logger.debug(f"Chunked text into {len(raw_chunks)} chunks using {self.chunker_name} strategy")
         
-        # User Modification: Console output for debugging
-        for i, chunk in enumerate(raw_chunks):
-            print(f"{i}({len(chunk)}): {chunk}")
+        # Console output for debugging
+        #for i, chunk in enumerate(raw_chunks):
+        #    print(f"{i}({len(chunk)}): {chunk}")
             
         return raw_chunks
 
