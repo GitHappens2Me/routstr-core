@@ -32,7 +32,7 @@ class BaseWebSearch:
 
         # Domain Blocklist will be used by Search provider if domain exclusion is supported
         # TODO: Unify this with BaseRAG.BLOCKED_DOMAINS?
-        self.BLOCKED_DOMAINS = {
+        self.EXCLUDE_DOMAINS = {
             "youtube.com", "youtu.be",
             "vimeo.com",
             "tiktok.com",
@@ -117,9 +117,9 @@ class BaseWebSearch:
         # Remove 'www.' if present to ensure matching
         if domain.startswith("www."):
             domain = domain[4:]
-        if domain in self.BLOCKED_DOMAINS:
+        if domain in self.EXCLUDE_DOMAINS:
             print(f"blocked: {url}")
-        return domain in self.BLOCKED_DOMAINS
+        return domain in self.EXCLUDE_DOMAINS
 
 
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:
