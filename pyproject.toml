@@ -37,6 +37,7 @@ dev = [
     "psutil>=5.9.0",
     "aiohttp>=3.9.0",
     "pytest-benchmark>=4.0.0",
+    "rank-bm25",
     "routstr",
 ]
 
