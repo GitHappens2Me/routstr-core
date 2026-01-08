@@ -173,7 +173,7 @@ class ExaWebRAG(BaseWebRAG):
             "startPublishedDate": None,
             "endPublishedDate": None,
             "includeDomains": None,
-            "excludeDomains": None,
+            "excludeDomains": self.EXCLUDE_DOMAINS, #handle self.EXCLUDE_DOMAINS == None
             "category": None,
             "subpageTarget": None,
             "subpages": 0,  # Do not scrape subpages
@@ -201,6 +201,6 @@ class ExaWebRAG(BaseWebRAG):
             True if basic validation passes, False otherwise
 
         """
-        # TODO: How can we check Exa availability without using tokens (/usage endpoint not supported)
-        # Currently just returns True as placeholder
+        # Exa does not suppor any way of checking availbility without using API-tokens
+        # Fallback: Assume availibity
         return True

@@ -178,9 +178,9 @@ class TavilyWebRAG(BaseWebRAG):
             "include_raw_content": False,  # We'll use chunks instead of raw content
             "max_results": min(max_results, 10),  # Tavily max is 10
             "include_domains": None,
-            "exclude_domains": None,
+            "exclude_domains": self.EXCLUDE_DOMAINS,#handle self.EXCLUDE_DOMAINS == None
             "days": None,  # No time limit by default
-            "chunks_per_source": 5,  # Get 3 chunks per source
+            "chunks_per_source": 3,  # number of chunks per source; Tavily's max: 3
         }
 
         headers = {

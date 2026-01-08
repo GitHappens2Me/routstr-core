@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 import httpx
+from urllib.parse import urlparse
 
 from ..core.logging import get_logger
 from .types import SearchResult
@@ -28,6 +29,16 @@ class BaseWebSearch:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         }
         self.client_redirects: bool = True
+
+        # Domain Blocklist will be used by Search provider if domain exclusion is supported
+        # TODO: Unify this with BaseRAG.BLOCKED_DOMAINS?
+        self.BLOCKED_DOMAINS = {
+            "youtube.com", "youtu.be",
+            "vimeo.com",
+            "tiktok.com",
+            "instagram.com", 
+            "facebook.com",
+            }
 
     async def search(self, query: str, max_results: int = 5) -> SearchResult:
         """Perform web search and return results."""
@@ -90,6 +101,26 @@ class BaseWebSearch:
                 error_msg = f"Request failed for {method} {url}: {e}"
                 logger.error(error_msg)
                 raise Exception(error_msg) from e
+
+    
+    def is_blocked(self, url: str) -> bool:
+        """Check if a URL's domain is in the blocklist.
+
+        Args:
+            url: The URL to check.
+
+        Returns:
+            True if the domain is blocked, False otherwise.
+        """
+        # Extract domain from URL
+        domain = urlparse(url).netloc
+        # Remove 'www.' if present to ensure matching
+        if domain.startswith("www."):
+            domain = domain[4:]
+        if domain in self.BLOCKED_DOMAINS:
+            print(f"blocked: {url}")
+        return domain in self.BLOCKED_DOMAINS
+
 
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:
         """

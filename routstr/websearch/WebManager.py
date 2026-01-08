@@ -320,7 +320,6 @@ async def _inject_web_context_into_request(
     for i, web_page in enumerate(search_result.results, 1):
         web_context += f"Result {i}: [Title: '{web_page.title}', "
         web_context += f"URL: '{web_page.url}', "
-
         if web_page.summary:
             web_context += f"Summary: '{web_page.summary}', "
 
@@ -331,6 +330,7 @@ async def _inject_web_context_into_request(
             web_context += f"Relevance Score: '{web_page.relevance_score}', "
 
         web_context += f"Relevant Sections: '{web_page.relevant_chunks}']\n"
+
 
     # Parse and enhance the request
     try:
@@ -344,7 +344,6 @@ async def _inject_web_context_into_request(
         messages = request_data.get("messages", [])
         messages.append(web_context_message)
         request_data["messages"] = messages
-
         enhanced_request_body = json.dumps(request_data).encode("utf-8")
         logger.info(f"Successfully injected web context for query: '{query}'")
         #logger.debug(f"Enhanced Body: '{request_data}'")

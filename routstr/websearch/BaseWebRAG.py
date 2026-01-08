@@ -34,6 +34,16 @@ class BaseWebRAG:
         }
         self.client_redirects: bool = True
 
+        # Domain Blocklist will be passed to RAG provider if domain exclusion is supported
+        self.EXCLUDE_DOMAINS = {
+            "youtube.com", 
+            "youtu.be",
+            "vimeo.com",
+            "tiktok.com",
+            "instagram.com", 
+            "facebook.com",
+            }
+
     async def make_request(
         self,
         method: str,

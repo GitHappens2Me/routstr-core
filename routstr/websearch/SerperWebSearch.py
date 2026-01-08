@@ -64,17 +64,18 @@ class SerperWebSearch(BaseWebSearch):
             serper_result = api_response.get("organic", [])
             parsed_results = []
             for i, item in enumerate(serper_result):
-                result = WebPageContent(
-                    title=item.get("title", "No Title"),
-                    url=item.get("link", "Unknown URL"),
-                    summary=item.get("snippet", None),
-                    publication_date=item.get("date", None),
-                    relevance_score=1.0
-                    - (i * 0.1),  # Simple relevance based on position
-                    content=None,
-                    relevant_chunks=None,
-                )
-                parsed_results.append(result)
+                if not self.is_blocked(url=item.get("link", "")):
+                    result = WebPageContent(
+                        title=item.get("title", "No Title"),
+                        url=item.get("link", "Unknown URL"),
+                        summary=item.get("snippet", None),
+                        publication_date=item.get("date", None),
+                        relevance_score=1.0
+                        - (i * 0.1),  # Simple relevance based on position
+                        content=None,
+                        relevant_chunks=None,
+                    )
+                    parsed_results.append(result)
 
             if not parsed_results:
                 logger.warning(f"No results found for query: '{query}'")
