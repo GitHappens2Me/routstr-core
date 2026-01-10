@@ -122,7 +122,7 @@ async def get_rag_provider() -> Optional[BaseWebRAG]:
 def get_web_search_provider() -> Optional[BaseWebSearch]:
     """
     Get web search provider based on WEB_SEARCH_PROVIDER configuration.
-    This only returns web search providers (like Serper), not RAG providers.
+    This only returns web search providers (like Serper)
 
     Returns:
         Web search provider instance or None if not available
@@ -309,12 +309,12 @@ async def _inject_web_context_into_request(
         return request_body, []
 
     # Add number of results
-    web_context = f"Websearch yielded {len(search_result.results)} relevant results.\n"
+    web_context = f"Websearch yielded {len(search_result.results)} relevant results for query '{query}'.\n"
 
     # Add optional summary
     if search_result.summary:
         web_context += f"Summary: '{search_result.summary}'\n"
-
+    
     # Prepare sources list for the response body
     sources = []
 

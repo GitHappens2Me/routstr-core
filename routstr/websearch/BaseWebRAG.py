@@ -34,7 +34,7 @@ class BaseWebRAG:
         }
         self.client_redirects: bool = True
 
-        # Domain Blocklist will be passed to RAG provider if domain exclusion is supported
+        # Domain Blocklist will be passed to RAG provider and used if domain exclusion is supported
         self.EXCLUDE_DOMAINS = {
             "youtube.com", 
             "youtu.be",
@@ -117,6 +117,23 @@ class BaseWebRAG:
         """
         raise NotImplementedError("Subclasses must implement retrieve method")
 
+    async def check_availability(self) -> bool:
+        """Check if the RAG provider service is available and API key is valid.
+
+        Performs a lightweight API call to verify:
+        - Service accessibility
+        - API key validity
+        - Service operational status
+
+        Returns:
+            True if provider is available and functional, False otherwise
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method
+        """
+        raise NotImplementedError("Subclasses must implement check_availability method")
+
+
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:
         """Load mock API response data from local JSON file for testing purposes.
 
@@ -172,18 +189,3 @@ class BaseWebRAG:
         except Exception as e:
             logger.error(f"Failed to save API response: {e}")
 
-    async def check_availability(self) -> bool:
-        """Check if the RAG provider service is available and API key is valid.
-
-        Performs a lightweight API call to verify:
-        - Service accessibility
-        - API key validity
-        - Service operational status
-
-        Returns:
-            True if provider is available and functional, False otherwise
-
-        Raises:
-            NotImplementedError: Subclasses must implement this method
-        """
-        raise NotImplementedError("Subclasses must implement check_availability method")
