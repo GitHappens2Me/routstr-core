@@ -10,6 +10,7 @@ import asyncio
 import os
 import re
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from datetime import datetime
 from typing import List, Optional
 
@@ -55,23 +56,21 @@ class BaseWebScraper(ABC):
     ) -> List[WebPageContent]:
         """Scrape multiple webpages concurrently."""
 
-    # TODO: return SearchResult or modify in place?
-    # I think returning a new obj would be better
-    # Currently in place
-    async def scrape_search_results(self, search_result: SearchResult) -> None:
+    async def scrape_search_results(self, search_result: SearchResult) -> SearchResult:
         """
-        Scrape content from URLs in a SearchResult object.
+        Scrape content from URLs in a SearchResult object and return a new SearchResult.
 
         Args:
             search_result: SearchResult object with URLs to scrape
 
         Returns:
-            SearchResult with scraped content populated
+            A new SearchResult object with scraped content populated
         """
         if not search_result.results:
             # TODO: better logging
+            
             logger.warning("No results to scrape")
-            return
+            return search_result
 
         pages_to_scrape = search_result.results
         num_pages_to_scrape = len(pages_to_scrape)
@@ -84,12 +83,10 @@ class BaseWebScraper(ABC):
         )
         scrape_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-        search_result.results = scraped_webpages
         num_successful_scrapes = len([c for c in scraped_webpages if c.content])
 
         logger.info(
             f"Scraped {num_successful_scrapes}/{num_pages_to_scrape} successfully in {scrape_time_ms}ms",
-            # Pass the list of failures as structured data
             extra={
                 "scraping_summary": {
                     "successful_count": num_successful_scrapes,
@@ -99,6 +96,8 @@ class BaseWebScraper(ABC):
                 }
             },
         )
+
+        return replace(search_result, results=scraped_webpages)
 
     def _sanitize_filename(self, url: str) -> str:
         """Create a safe filename from a URL."""

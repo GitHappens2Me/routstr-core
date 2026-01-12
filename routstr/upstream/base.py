@@ -704,10 +704,11 @@ class BaseUpstreamProvider:
         if path.endswith("chat/completions") and transformed_body and settings.enable_web_search and enable_web_search:
             try:
                 logger.debug("Web search enabled and requested")
-                transformed_body, sources = await web_manager.enhance_request_with_web_context(
-                    transformed_body
-                )
-                web_search_executed = True
+                web_search_result = await web_manager.enhance_request_with_web_context(transformed_body)
+                if(web_search_result["success"]):
+                    transformed_body = web_search_result["body"]
+                    sources = web_search_result["sources"]
+                    web_search_executed = True
             except Exception as e:
                 logger.warning(
                     "Failed to enhance request with webcontext",
@@ -1492,7 +1493,6 @@ class BaseUpstreamProvider:
 
         request_body = await request.body()
         transformed_body = self.prepare_request_body(request_body, model_obj)
-
         logger.debug(
             "Forwarding request to upstream",
             extra={
@@ -1528,7 +1528,6 @@ class BaseUpstreamProvider:
                         "response_headers": dict(response.headers),
                     },
                 )
-
                 if response.status_code != 200:
                     logger.warning(
                         "Upstream request failed, processing refund",

@@ -6,6 +6,7 @@ web search, content scraping, and text chunking into a unified RAG pipeline.
 Offers flexibility to use different providers for each pipeline stage.
 """
 
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from ..core.logging import get_logger
@@ -100,10 +101,10 @@ class CustomRAG(BaseWebRAG):
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 )
 
-            await self.scraper_provider.scrape_search_results(search_response)
+            search_response = await self.scraper_provider.scrape_search_results(search_response)
 
             if settings.enable_chunking and search_response.results:
-                await self.chunker_provider.chunk_search_results(search_response, query)
+                search_response = await self.chunker_provider.chunk_search_results(search_response, query)
 
             # Calculate total pipeline time
             search_time = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -111,11 +112,12 @@ class CustomRAG(BaseWebRAG):
                 f"CustomRAG pipeline completed: {len(search_response.results)} results in {search_time}ms"
             )
 
-            # Update timing metadata
-            search_response.search_time_ms = search_time
-            search_response.timestamp = datetime.now(timezone.utc).isoformat()
-
-            return search_response
+            # Update timing metadata and return a new object
+            return replace(
+                search_response,
+                search_time_ms=search_time,
+                timestamp=datetime.now(timezone.utc).isoformat()
+            )
 
         except Exception as e:
             error_msg = f"CustomRAG pipeline failed for query '{query}': {e}"

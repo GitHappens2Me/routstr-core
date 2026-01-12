@@ -237,7 +237,9 @@ class WebManager:
             )
             return None
 
-    async def enhance_request_with_web_context(self, request_body: bytes) -> tuple[bytes, list[str]]:
+    async def enhance_request_with_web_context(
+        self, request_body: bytes
+    ) -> dict[str, Any]:
         """
         Enhance AI request with web search context using configured RAG provider.
 
@@ -249,7 +251,10 @@ class WebManager:
             request_body: The original request body as bytes
 
         Returns:
-            Tuple of (Enhanced request body as bytes, List of source strings)
+            Dict containing:
+            - 'body': Enhanced request body as bytes
+            - 'sources': List of source strings
+            - 'success': Boolean indicating if RAG was successful and yielded results
         """
         try:
             # Get configured RAG provider (all-in-one or custom)
@@ -257,22 +262,28 @@ class WebManager:
 
             if not rag_provider:
                 logger.warning("No RAG provider available, cannot enhance request")
-                return request_body, []
+                return {"body": request_body, "sources": [], "success": False}
 
             # Extract query from request
             extracted_query = self._extract_query_from_request_body(request_body)
 
             if not extracted_query:
-                return request_body, []
+                return {"body": request_body, "sources": [], "success": False}
 
             # Perform complete RAG pipeline (handles all complexity internally)
             max_web_searches = settings.web_search_max_results
-            search_result = await rag_provider.retrieve_context(extracted_query, max_web_searches)
+            search_result = await rag_provider.retrieve_context(
+                extracted_query, max_web_searches
+            )
 
             # Inject context into request
-            return await self._inject_web_context_into_request(
+            enhanced_body, sources = await self._inject_web_context_into_request(
                 request_body, search_result, extracted_query
             )
+
+            # If we have results, it's a success
+            success = bool(search_result and search_result.results)
+            return {"body": enhanced_body, "sources": sources, "success": success}
 
         except Exception as e:
             logger.error(
@@ -283,7 +294,7 @@ class WebManager:
                     "rag_provider": settings.web_rag_provider,
                 },
             )
-            return request_body, []
+            return {"body": request_body, "sources": [], "success": False}
 
 
     @staticmethod

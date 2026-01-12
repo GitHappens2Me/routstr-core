@@ -9,6 +9,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import List
 
+from dataclasses import replace
 from rank_bm25 import BM25Okapi
 
 from ..core.logging import get_logger
@@ -87,37 +88,38 @@ class BaseWebChunker(ABC):
         self, search_result: SearchResult, query: str
     ) -> SearchResult:
         """
-        Chunk the content in search results concurrently.
+        Chunk the content in search results concurrently and return a new SearchResult.
         """
         logger.info(
             f"Chunking content for {len(search_result.results)} search results concurrently"
         )
 
-        async def process_and_update(result: WebPageContent) -> None:
+        async def process(result: WebPageContent) -> WebPageContent:
             if not result.content:
-                return
+                return result
             try:
                 chunks = await self.chunk_text(result.content)
                 ranked_chunks = self.rank_chunks(chunks, query)
                 ranked_chunks = ranked_chunks[: settings.chunk_max_chunks_per_source]
-                result.relevant_chunks = ranked_chunks
+                
                 logger.debug(
                     f"Selected {len(ranked_chunks)}/{len(chunks)} chunks for {result.url}. "
                     f"{sum(len(s) for s in ranked_chunks)}/{sum(len(s) for s in chunks)} characters included."
                 )
+                return replace(result, relevant_chunks=ranked_chunks)
             except Exception as e:
                 logger.error(f"Failed to chunk content for {result.url}: {e}")
-                result.relevant_chunks = None
+                return replace(result, relevant_chunks=None)
 
         tasks = [
-            process_and_update(result)
+            process(result)
             for result in search_result.results
-            if result.content
         ]
 
         # 3. Run all tasks concurrently and wait for them to complete.
         if tasks:
-            await asyncio.gather(*tasks)
+            chunked_webpages = await asyncio.gather(*tasks)
+            return replace(search_result, results=list(chunked_webpages))
 
         return search_result
 

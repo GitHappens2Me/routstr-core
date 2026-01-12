@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import replace
 from datetime import datetime
 from typing import List, Optional
 
@@ -130,8 +131,7 @@ class DefaultWebScraper(BaseWebScraper):
                 """Wraps the scraping of a single page with the semaphore."""
                 async with semaphore:
                     content = await self.scrape_url(webpage.url, client)
-                    webpage.content = content
-                    return webpage
+                    return replace(webpage, content=content)
 
             # Create a list of tasks to run concurrently
             tasks = [scrape_single_page(page) for page in webpages]

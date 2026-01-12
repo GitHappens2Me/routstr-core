@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 
-@dataclass
+@dataclass(frozen=True)
 class WebPageContent:
     """Content retrieved from a single URL.
 
@@ -22,7 +22,7 @@ class WebPageContent:
     )
 
 
-@dataclass
+@dataclass(frozen=True)
 class SearchResult:
     """Complete RAG search result containing processed web content and metadata.
 
