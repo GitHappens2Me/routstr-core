@@ -66,7 +66,7 @@ class SerperWebSearch(BaseWebSearch):
             for i, item in enumerate(serper_result):
                 if not self.is_blocked(url=item.get("link", "")):
                     result = WebPageContent(
-                        title=item.get("title", "No Title"),
+                        title=item.get("title", None),
                         url=item.get("link", "Unknown URL"),
                         summary=item.get("snippet", None),
                         publication_date=item.get("date", None),
@@ -83,7 +83,6 @@ class SerperWebSearch(BaseWebSearch):
                     query=query,
                     results=[],
                     summary=None,
-                    total_results=0,
                     search_time_ms=int(
                         (datetime.now() - start_time).total_seconds() * 1000
                     ),
@@ -97,7 +96,6 @@ class SerperWebSearch(BaseWebSearch):
                 query=query,
                 results=parsed_results,
                 summary=None,
-                total_results=len(parsed_results),
                 search_time_ms=search_time,
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )

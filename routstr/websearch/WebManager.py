@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import Optional, Dict, Any, Tuple
 
 from ..core.logging import get_logger
 from ..core.settings import settings
@@ -12,357 +12,447 @@ from .CustomRAG import CustomRAG
 logger = get_logger(__name__)
 
 
-# TODO: Add availibity check!
-async def get_rag_provider() -> Optional[BaseWebRAG]:
+class WebManager:
     """
-    Get RAG provider based on RAG_PROVIDER configuration.
-    This only returns true all-in-one RAG providers (like Tavily).
-
-    Returns:
-        BaseWebRAG instance or None if not available
+    Manager class for web search and RAG functionality.
+    Handles provider initialization, caching, and request enhancement.
     """
-    if not settings.web_rag_provider:
-        logger.debug("No RAG_PROVIDER configured")
-        return None
 
-    provider_name = settings.web_rag_provider.lower()
+    def __init__(self):
+        self._rag_provider: Optional[BaseWebRAG] = None
+        self._search_provider: Optional[BaseWebSearch] = None
+        self._scraper_provider: Optional[BaseWebScraper] = None
+        self._chunker_provider: Optional[BaseWebChunker] = None
 
-    match provider_name:
-        case "tavily":
-            try:
-                from .TavilyWebRAG import TavilyWebRAG
+    async def get_rag_provider(self) -> Optional[BaseWebRAG]:
+        """
+        Get RAG provider based on RAG_PROVIDER configuration.
+        This only returns true all-in-one RAG providers (like Tavily).
 
-                if not settings.tavily_api_key:
-                    logger.warning(
-                        "Tavily selected as RAG provider but no API key configured"
-                    )
+        Returns:
+            BaseWebRAG instance or None if not available
+        """
+        if self._rag_provider:
+            return self._rag_provider
+
+        if not settings.web_rag_provider:
+            logger.debug("No RAG_PROVIDER configured")
+            return None
+
+        provider_name = settings.web_rag_provider.lower()
+
+        match provider_name:
+            case "tavily":
+                try:
+                    from .TavilyWebRAG import TavilyWebRAG
+
+                    if not settings.tavily_api_key:
+                        logger.warning(
+                            "Tavily selected as RAG provider but no API key configured"
+                        )
+                        return None
+                    tavily = TavilyWebRAG(api_key=settings.tavily_api_key)
+                    if not await tavily.check_availability():
+                        logger.warning(
+                            "Tavily availability check failed - service may be unavailable or API key invalid"
+                        )
+                        return None
+
+                    logger.info("Using Tavily as RAG provider")
+                    self._rag_provider = tavily
+                    return self._rag_provider
+                except Exception as e:
+                    logger.error(f"Failed to initialize TavilyWebRAG: {e}")
                     return None
-                tavily = TavilyWebRAG(api_key=settings.tavily_api_key)
-                if not await tavily.check_availability():
-                    logger.warning(
-                        "Tavily availability check failed - service may be unavailable or API key invalid"
-                    )
+
+            case "exa":
+                try:
+                    from .ExaWebRAG import ExaWebRAG
+
+                    if not settings.exa_api_key:
+                        logger.warning(
+                            "Exa selected as RAG provider but no API key configured"
+                        )
+                        return None
+                    exa = ExaWebRAG(api_key=settings.exa_api_key)
+                    if not await exa.check_availability():
+                        logger.warning(
+                            "Exa availability check failed - service may be unavailable or API key invalid"
+                        )
+                        return None
+                    logger.info("Using Exa as RAG provider")
+                    self._rag_provider = exa
+                    return self._rag_provider
+                except Exception as e:
+                    logger.error(f"Failed to initialize ExaWebRAG: {e}")
                     return None
 
-                logger.info("Using Tavily as RAG provider")
-                return tavily
-            except ImportError as e:  # TODO: is this even necessary?
-                logger.error(f"Failed to import TavilyWebRAG: {e}")
+            case "custom":
+                try:
+                    # Get individual providers for custom pipeline
+                    search_provider = await self.get_web_search_provider()
+                    scraper_provider = await self.get_web_scraper_provider()
+                    chunker_provider = await self.get_web_chunker_provider()
+
+                    if not search_provider:
+                        logger.warning(
+                            "Custom RAG provider selected but no web search provider available"
+                        )
+                        return None
+                    if not scraper_provider:
+                        logger.warning(
+                            "Custom RAG provider selected but no web scraper provider available"
+                        )
+                        return None
+                    if not chunker_provider:
+                        logger.warning(
+                            "Custom RAG provider selected but no chunker provider available"
+                        )
+                        return None
+
+                    custom_rag = CustomRAG(
+                        search_provider, scraper_provider, chunker_provider
+                    )
+                    if not await custom_rag.check_availability():
+                        logger.warning(
+                            "Custom RAG availability check failed - some components may be unavailable"
+                        )
+                        return None
+
+                    logger.info("Using Custom RAG provider")
+                    self._rag_provider = custom_rag
+                    return self._rag_provider
+
+                except Exception as e:
+                    logger.error(f"Failed to initialize CustomRAG: {e}")
+                    return None
+
+            case _:
+                logger.error(f"Unknown RAG provider: {provider_name}")
                 return None
+
+    async def get_web_search_provider(self) -> Optional[BaseWebSearch]:
+        """
+        Get web search provider based on WEB_SEARCH_PROVIDER configuration.
+        This only returns web search providers (like Serper)
+
+        Returns:
+            Web search provider instance or None if not available
+        """
+        if self._search_provider:
+            return self._search_provider
+
+        if not settings.web_search_provider:
+            logger.debug("No WEB_SEARCH_PROVIDER configured")
+            return None
+
+        provider_name = settings.web_search_provider.lower()
+        if provider_name == "serper":
+            try:
+                from .SerperWebSearch import SerperWebSearch
+
+                if not settings.serper_api_key:
+                    logger.warning("Serper provider selected but no API key configured")
+                    return None
+                self._search_provider = SerperWebSearch(api_key=settings.serper_api_key)
+                return self._search_provider
             except Exception as e:
-                logger.error(f"Failed to initialize TavilyWebRAG: {e}")
+                logger.error(f"Failed to initialize SerperWebSearch: {e}")
+                return None
+        elif provider_name == "none":
+            logger.info("No web search provider configured")
+            return None
+        else:
+            logger.error(f"Unknown web search provider: {provider_name}")
+            return None
+
+    async def get_web_scraper_provider(self) -> Optional[BaseWebScraper]:
+        """
+        Get web scraper provider based on configuration.
+
+        Returns:
+            Web scraper provider instance or None if not available
+        """
+        if self._scraper_provider:
+            return self._scraper_provider
+
+        scraper_name = settings.web_scraper_provider.lower()
+
+        if scraper_name == "default":
+            try:
+                from .DefaultWebScraper import DefaultWebScraper
+
+                self._scraper_provider = DefaultWebScraper()
+                return self._scraper_provider
+            except Exception as e:
+                logger.error(f"Failed to initialize DefaultWebScraper: {e}")
                 return None
 
-        case "exa":
+        else:
+            logger.error(
+                f"Unknown web scraper provider: {scraper_name}. Web functionality disabled"
+            )
+            return None
+
+    async def get_web_chunker_provider(self) -> Optional[BaseWebChunker]:
+        """
+        Get chunker provider based on configuration.
+
+        Returns:
+            Chunker provider instance or None if not available
+        """
+        if self._chunker_provider:
+            return self._chunker_provider
+
+        chunker_name = settings.chunker_provider.lower()
+
+        if chunker_name == "fixed":
             try:
-                from .ExaWebRAG import ExaWebRAG
+                from .FixedSizeChunker import FixedSizeChunker
 
-                if not settings.exa_api_key:
-                    logger.warning(
-                        "Exa selected as RAG provider but no API key configured"
-                    )
-                    return None
-                logger.info("Using Exa as RAG provider")
-                exa = ExaWebRAG(api_key=settings.exa_api_key)
-                if not await exa.check_availability():
-                    logger.warning(
-                        "Exa availability check failed - service may be unavailable or API key invalid"
-                    )
-                    return None
-                logger.info("Using Exa as RAG provider")
-                return exa
-            except ImportError as e:
-                logger.error(f"Failed to initialize ExaWebRAG: {e}")
-                return None
-
-        case "custom":
-            try:
-                # Get individual providers for custom pipeline
-                search_provider = get_web_search_provider()
-                scraper_provider = get_web_scraper_provider()
-                chunker_provider = get_web_chunker_provider()
-
-                if not search_provider:
-                    logger.warning(
-                        "Custom RAG provider selected but no web search provider available"
-                    )
-                    return None
-                if not scraper_provider:
-                    logger.warning(
-                        "Custom RAG provider selected but no web scraper provider available"
-                    )
-                    return None
-                if not chunker_provider:
-                    logger.warning(
-                        "Custom RAG provider selected but no chunker provider available"
-                    )
-                    return None
-
-                custom_rag = CustomRAG(
-                    search_provider, scraper_provider, chunker_provider
+                self._chunker_provider = FixedSizeChunker(
+                    chunk_size=settings.chunk_max_size, chunk_overlap=settings.chunk_overlap
                 )
-                if not await custom_rag.check_availability():
-                    logger.warning(
-                        "Custom RAG availability check failed - some components may be unavailable"
-                    )
-                    return None
-
-                logger.info("Using Custom RAG provider")
-                return custom_rag
-
+                return self._chunker_provider
             except Exception as e:
-                logger.error(f"Failed to initialize CustomRAG: {e}")
+                logger.error(f"Failed to initialize FixedSizeChunker: {e}")
                 return None
-
-        case _:
-            logger.error(f"Unknown RAG provider: {provider_name}")
-            return None
-
-
-def get_web_search_provider() -> Optional[BaseWebSearch]:
-    """
-    Get web search provider based on WEB_SEARCH_PROVIDER configuration.
-    This only returns web search providers (like Serper)
-
-    Returns:
-        Web search provider instance or None if not available
-    """
-    if not settings.web_search_provider:
-        logger.debug("No WEB_SEARCH_PROVIDER configured")
-        return None
-
-    provider_name = settings.web_search_provider.lower()
-    if provider_name == "serper":
-        try:
-            from .SerperWebSearch import SerperWebSearch
-
-            if not settings.serper_api_key:
-                logger.warning("Serper provider selected but no API key configured")
+        elif chunker_name == "recursive":
+            try:
+                from .RecursiveChunker import RecursiveChunker
+                self._chunker_provider = RecursiveChunker(
+                    chunk_size=settings.chunk_max_size,
+                    chunk_overlap=settings.chunk_overlap
+                )
+                return self._chunker_provider
+            except Exception as e:
+                logger.error(f"Failed to initialize RecursiveChunker: {e}")
                 return None
-            # logger.info("Using Serper web search provider")
-            return SerperWebSearch(api_key=settings.serper_api_key)
-        except ImportError as e:
-            logger.error(f"Failed to import SerperWebSearch: {e}")
+        elif chunker_name == "none":
+            logger.info("No chunker configured. Chunking functionality disabled")
             return None
-    elif provider_name == "none":
-        logger.info("No web search provider configured")
-        return None
-    else:
-        logger.error(f"Unknown web search provider: {provider_name}")
-        return None
-
-
-def get_web_scraper_provider() -> Optional[BaseWebScraper]:
-    """
-    Get web scraper provider based on configuration.
-
-    Returns:
-        Web scraper provider instance or None if not available
-    """
-    scraper_name = settings.web_scraper_provider.lower()
-
-    if scraper_name == "default":
-        try:
-            from .DefaultWebScraper import DefaultWebScraper
-
-            return DefaultWebScraper()
-        except ImportError as e:
-            logger.error(f"Failed to import DefaultWebScraper: {e}")
-            return None
-
-    else:
-        logger.error(
-            f"Unknown web scraper provider: {scraper_name}. Web functionality disabled"
-        )
-        return None
-
-
-def get_web_chunker_provider() -> Optional[BaseWebChunker]:
-    """
-    Get chunker provider based on configuration.
-
-    Returns:
-        Chunker provider instance or None if not available
-    """
-    chunker_name = settings.chunker_provider.lower()
-
-    if chunker_name == "fixed":
-        try:
-            from .FixedSizeChunker import FixedSizeChunker
-
-            return FixedSizeChunker(
-                chunk_size=settings.chunk_max_size, chunk_overlap=settings.chunk_overlap
+        else:
+            logger.error(
+                f"Unknown chunker provider: {chunker_name}. Chunking functionality disabled"
             )
-        except ImportError as e:
-            logger.error(f"Failed to import FixedSizeChunker: {e}")
             return None
-    elif chunker_name == "recursive":
+
+    async def enhance_request_with_web_context(self, request_body: bytes) -> tuple[bytes, list[str]]:
+        """
+        Enhance AI request with web search context using configured RAG provider.
+
+        This method uses the unified RAG interface that handles the complete pipeline:
+        - All-in-one providers (Tavily, Exa): Search + extract + chunk in one call
+        - Custom provider: Manual pipeline with separate search, scrape, and chunk components
+
+        Args:
+            request_body: The original request body as bytes
+
+        Returns:
+            Tuple of (Enhanced request body as bytes, List of source strings)
+        """
         try:
-            from .RecursiveChunker import RecursiveChunker
-            return RecursiveChunker(
-                chunk_size=settings.chunk_max_size,
-                chunk_overlap=settings.chunk_overlap
+            # Get configured RAG provider (all-in-one or custom)
+            rag_provider = await self.get_rag_provider()
+
+            if not rag_provider:
+                logger.warning("No RAG provider available, cannot enhance request")
+                return request_body, []
+
+            # Extract query from request
+            extracted_query = self._extract_query_from_request_body(request_body)
+
+            if not extracted_query:
+                return request_body, []
+
+            # Perform complete RAG pipeline (handles all complexity internally)
+            max_web_searches = settings.web_search_max_results
+            search_result = await rag_provider.retrieve_context(extracted_query, max_web_searches)
+
+            # Inject context into request
+            return await self._inject_web_context_into_request(
+                request_body, search_result, extracted_query
             )
-        except ImportError as e:
-            logger.error(f"Failed to import RecursiveCharacterChunker: {e}")
-        return None
-    elif chunker_name == "none":
-        logger.info("No chunker configured. Chunking functionality disabled")
-        return None
-    else:
-        logger.error(
-            f"Unknown chunker provider: {chunker_name}. Chunking functionality disabled"
-        )
-        return None
 
-
-async def enhance_request_with_web_context(request_body: bytes) -> tuple[bytes, list[dict]]:
-    """
-    Enhance AI request with web search context using configured RAG provider.
-
-    This method uses the unified RAG interface that handles the complete pipeline:
-    - All-in-one providers (Tavily, Exa): Search + extract + chunk in one call
-    - Custom provider: Manual pipeline with separate search, scrape, and chunk components
-
-    Args:
-        request_body: The original request body as bytes
-
-    Returns:
-        Tuple of (Enhanced request body as bytes, List of source dictionaries)
-    """
-    try:
-        # Get configured RAG provider (all-in-one or custom)
-        rag_provider = await get_rag_provider()
-
-        if not rag_provider:
-            logger.warning("No RAG provider available, cannot enhance request")
+        except Exception as e:
+            logger.error(
+                f"Failed to enhance request with web context: {e}",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "rag_provider": settings.web_rag_provider,
+                },
+            )
             return request_body, []
 
-        # Extract query from request
-        extracted_query = _extract_query_from_request_body(request_body)
 
-        # Perform complete RAG pipeline (handles all complexity internally)
-        max_web_searches = settings.web_search_max_results
-        search_result = await rag_provider.retrieve(extracted_query, max_web_searches)
+    @staticmethod
+    def extract_web_search_parameter(body: bytes | None) -> Tuple[bytes | None, bool]:
+        """
+        Extracts the 'enable_web_search' parameter from a JSON request body.
 
-        # Inject context into request
-        return await _inject_web_context_into_request(
-            request_body, search_result, extracted_query
-        )
+        This function parses the body, extracts the boolean value of the
+        'enable_web_search' key, and returns the body bytes with the key removed
+        to prevent it from being forwarded to the upstream provider.
 
-    except Exception as e:
-        logger.error(
-            f"Failed to enhance request with web context: {e}",
-            extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "rag_provider": settings.web_rag_provider,
-            },
-        )
-        return request_body, []
+        Args:
+            body: The raw request body as bytes
+
+        Returns:
+            A tuple containing:
+            - bytes | None: The modified body as bytes, with 'enable_web_search' removed.
+                            Returns the original body if parsing fails or it's not JSON.
+            - bool: The extracted value of 'enable_web_search', defaulting to False.
+        """
+        if not body:
+            return None, False
+
+        try:
+            body_dict = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            logger.warning(
+                "Failed to decode or parse request body as JSON for web search extraction.",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
+            return body, False
+
+        enable_web_search = bool(body_dict.pop("enable_web_search", False))
+
+        # Serialize the modified dictionary back to bytes
+        try:
+            cleaned_body = json.dumps(body_dict).encode("utf-8")
+            return cleaned_body, enable_web_search
+        except (TypeError, ValueError) as e:
+            # Log the error and return the original body
+            logger.error(
+                "Failed to re-serialize request body after removing web search parameter.",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
+            return body, enable_web_search  # Still return the flag
 
 
-def _extract_query_from_request_body(request_body: bytes) -> str:
-    """
-    Extract search query from user messages in request body.
+    def _extract_query_from_request_body(self, request_body: bytes) -> str:
+        """
+        Extract search query from user messages in request body.
 
-    Args:
-        request_body: The request body as bytes
+        Args:
+            request_body: The request body as bytes
 
-    Returns:
-        Extracted query string or empty string if not found
-    """
-    try:
-        data = json.loads(request_body)
-        messages = data.get("messages", [])
+        Returns:
+            Extracted query string or empty string if not found
+        """
+        try:
+            data = json.loads(request_body)
+            messages = data.get("messages", [])
+            
+            # Iterate in reverse (from end to start)
+            for message in reversed(messages):
+                if message.get("role") == "user":
+                    content = message.get("content", "")
+                    # print(f"Extracted Query: {content}")
+                    return content.strip()
+
+            return ""
+
+        except Exception as e:
+            logger.warning(f"Failed to extract query from request body: {e}")
+            return ""
+
+    async def _inject_web_context_into_request(
+        self, request_body: bytes, search_result: SearchResult, query: str
+    ) -> tuple[bytes, list[str]]:
+        """
+        Inject web search context into AI request, filtering out None values and empty content.
+
+        Args:
+            request_body: The original request body as bytes
+            search_result: Either SearchResult object or None, if websearch failed
+            query: The search query used
+
+        Returns:
+            Tuple of (Enhanced request body as bytes, List of source strings)
+        """
+
+        if not search_result or not search_result.results:
+            return request_body, []
+
+        # Prepare sources list for the response body
+        sources = []
+
+        # Build structured XML context
+        context_parts = ["<search_results>"]
+        context_parts.append(f"Websearch yielded {len(search_result.results)} relevant results for query '{query}'.\n")
+
+        if search_result.summary:
+            context_parts.append(f"Summary: {search_result.summary}\n")
+
+        for i, web_page in enumerate(search_result.results, 1):
+
+            sources.append(web_page.url)
+            
+            result_block = [f"<result id=\"{i}\">"]
+            if web_page.title:
+                result_block.append(f"<title>{web_page.title}</title>")
+            result_block.append(f"<url>{web_page.url}</url>")
+            
+            if web_page.publication_date:
+                result_block.append(f"<date>{web_page.publication_date}</date>")
+            
+            if web_page.relevance_score:
+                result_block.append(f"<relevance_score>{web_page.relevance_score}</relevance_score>")
+            
+            if web_page.summary:
+                result_block.append(f"<summary>{web_page.summary}</summary>")
+            
+            if web_page.relevant_chunks:
+                joined_chunks = "\n\n".join(web_page.relevant_chunks)
+                result_block.append(f"<content>\n{joined_chunks}\n    </content>")
+            
+            result_block.append("</result>")
+            context_parts.append("\n".join(result_block))
+
+        context_parts.append("</search_results>\n")
+        context_parts.append("Please use the provided search results to answer the user's request. If the information is not available in the results, state that you don't know based on the web search.")
         
-        # Iterate in reverse (from end to start)
-        for message in reversed(messages):
-            if message.get("role") == "user":
-                content = message.get("content", "")
-                print(f"Extracted Query: {content}")
-                return content.strip()
+        web_context = "\n".join(context_parts)
+        print(web_context)
+        # Parse and enhance the request
+        try:
+            request_data = json.loads(request_body.decode("utf-8"))
+            messages = request_data.get("messages", [])
 
-        return ""
+            web_context_message = {
+                "role": "system",
+                "content": web_context,
+            }
 
-    except Exception as e:
-        logger.warning(f"Failed to extract query from request body: {e}")
-        return ""
+            # Inject context just before the last user message
+            # Find the index of the last user message
+            last_user_index = -1
+            for i in range(len(messages) - 1, -1, -1):
+                if messages[i].get("role") == "user":
+                    last_user_index = i
+                    break
+            
+            if last_user_index != -1:
+                messages.insert(last_user_index, web_context_message)
+            else:
+                # Fallback: append if no user message found (shouldn't happen in normal chat)
+                messages.append(web_context_message)
 
-# TODO: If search_response is None: inject a short message telling the model that                                                            # TODO: Add type (move Dataclasses to webmanager)
-async def _inject_web_context_into_request(
-    request_body: bytes, search_result: SearchResult, query: str
-) -> tuple[bytes, list[dict]]:
-    """
-    Inject web search context into AI request, filtering out None values and empty content.
+            request_data["messages"] = messages
 
-    Args:
-        request_body: The original request body as bytes
-        search_response: Either SearchResult object or None, if websearch failed
-        query: The search query used
+            enhanced_request_body = json.dumps(request_data).encode("utf-8")
+            logger.info(f"Successfully injected web context for query: '{query}'")
+            return enhanced_request_body, sources
 
-    Returns:
-        Tuple of (Enhanced request body as bytes, List of source dictionaries)
-    """
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse request body for context injection: {e}")
+            return request_body, sources
+        except Exception as e:
+            logger.error(f"Unexpected error during context injection: {e}")
+            return request_body, sources
 
-    if not search_result:
-        return request_body, []
 
-    # Add number of results
-    web_context = f"Websearch yielded {len(search_result.results)} relevant results for query '{query}'.\n"
-
-    # Add optional summary
-    if search_result.summary:
-        web_context += f"Summary: '{search_result.summary}'\n"
-    
-    # Prepare sources list for the response body
-    sources = []
-
-    # Add results
-    for i, web_page in enumerate(search_result.results, 1):
-        web_context += f"Result {i}: [Title: '{web_page.title}', "
-        web_context += f"URL: '{web_page.url}', "
-        if web_page.summary:
-            web_context += f"Summary: '{web_page.summary}', "
-
-        if web_page.publication_date:
-            web_context += f"Publishing Date: '{web_page.publication_date}', "
-
-        if web_page.relevance_score:
-            web_context += f"Relevance Score: '{web_page.relevance_score}', "
-
-        web_context += f"Relevant Sections: '{web_page.relevant_chunks}']\n"
-
-         
-        # We can also add the title:
-        #sources.append({
-        #   "title": web_page.title,
-        #   "url": web_page.url
-        #)
-
-        sources.append(web_page.url)
-
-    # Parse and enhance the request
-    try:
-        request_data = json.loads(request_body.decode("utf-8"))
-
-        web_context_message = {
-            "role": "system",
-            "content": web_context,
-        }
-
-        messages = request_data.get("messages", [])
-        messages.append(web_context_message)
-        request_data["messages"] = messages
-
-        enhanced_request_body = json.dumps(request_data).encode("utf-8")
-        logger.info(f"Successfully injected web context for query: '{query}'")
-        #logger.debug(f"Enhanced Body: '{request_data}'")
-        return enhanced_request_body, sources
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse request body for context injection: {e}")
-        return request_body, sources
-    except Exception as e:
-        logger.error(f"Unexpected error during context injection: {e}")
-        return request_body, sources
+# Singleton instance
+web_manager = WebManager()

@@ -34,7 +34,7 @@ from ..payment.models import (
 )
 from ..payment.price import sats_usd_price
 from ..wallet import recieve_token, send_token
-from ..websearch.WebManager import enhance_request_with_web_context
+from ..websearch.WebManager import web_manager
 
 logger = get_logger(__name__)
 
@@ -694,7 +694,7 @@ class BaseUpstreamProvider:
 
         transformed_body = self.prepare_request_body(request_body, model_obj)
 
-        transformed_body, enable_web_search = self._extract_web_search_parameter(
+        transformed_body, enable_web_search = web_manager.extract_web_search_parameter(
             transformed_body
         )
 
@@ -704,7 +704,7 @@ class BaseUpstreamProvider:
         if path.endswith("chat/completions") and transformed_body and settings.enable_web_search and enable_web_search:
             try:
                 logger.debug("Web search enabled and requested")
-                transformed_body, sources = await enhance_request_with_web_context(
+                transformed_body, sources = await web_manager.enhance_request_with_web_context(
                     transformed_body
                 )
                 web_search_executed = True
@@ -914,52 +914,6 @@ class BaseUpstreamProvider:
                 500,
                 request=request,
             )
-
-    @staticmethod
-    def _extract_web_search_parameter(body: bytes | None) -> Tuple[bytes | None, bool]:
-        """
-        Extracts the 'enable_web_search' parameter from a JSON request body.
-
-        This function parses the body, extracts the boolean value of the
-        'enable_web_search' key, and returns the body bytes with the key removed
-        to prevent it from being forwarded to the upstream provider.
-
-        This can be overwritten by the specific Upstream classes to handle their implementation of websearch, including special Request Parameters.
-
-        Args:
-            body: The raw request body as bytes
-
-        Returns:
-            A tuple containing:
-            - bytes | None: The modified body as bytes, with 'enable_web_search' removed.
-                            Returns the original body if parsing fails or it's not JSON.
-            - bool: The extracted value of 'enable_web_search', defaulting to False.
-        """
-        if not body:
-            return None, False
-
-        try:
-            body_dict = json.loads(body)
-        except (UnicodeDecodeError, json.JSONDecodeError) as e:
-            logger.warning(
-                "Failed to decode or parse request body as JSON for web search extraction.",
-                extra={"error": str(e), "error_type": type(e).__name__},
-            )
-            return body, False
-
-        enable_web_search = bool(body_dict.pop("enable_web_search", False))
-
-        # Serialize the modified dictionary back to bytes
-        try:
-            cleaned_body = json.dumps(body_dict).encode("utf-8")
-            return cleaned_body, enable_web_search
-        except (TypeError, ValueError) as e:
-            # Log the error and return the original body
-            logger.error(
-                "Failed to re-serialize request body after removing web search parameter.",
-                extra={"error": str(e), "error_type": type(e).__name__},
-            )
-            return body, enable_web_search  # Still return the flag
 
     async def forward_get_request(
         self,

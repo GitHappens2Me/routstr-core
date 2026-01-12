@@ -48,7 +48,7 @@ class TavilyWebRAG(BaseWebRAG):
 
         logger.info("TavilyWebRAG initialized.")
 
-    async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
+    async def retrieve_context(self, query: str, max_results: int = 10) -> SearchResult:
         """
         Perform complete RAG pipeline using Tavily's all-in-one API.
 
@@ -67,10 +67,11 @@ class TavilyWebRAG(BaseWebRAG):
         """
         start_time = datetime.now()
 
-        logger.warning(
+        if len(query) >= 400:
+            query = query[:400]
+            logger.warning(
                 f"Tavily's limit of 400 characters exceeded with {len(query)} characters. Using only first 400 characters."
             )
-        query = query[:400]
 
         logger.debug(f"Performing Tavily API search for: '{query}'")
 
@@ -93,7 +94,7 @@ class TavilyWebRAG(BaseWebRAG):
             #logger.debug(f"Tavily API response: {api_response}")
             for i, web_page in enumerate(tavily_results):
                 result = WebPageContent(
-                    title=web_page.get("title", "No Title"),
+                    title=web_page.get("title", None),
                     url=web_page.get("url", "Unknown URL"),
                     summary=None,  # Summary not supported by tavily
                     publication_date=None,  # Tavily doesn't provide publish date in basic search
@@ -103,9 +104,9 @@ class TavilyWebRAG(BaseWebRAG):
                     content=web_page.get(
                         "raw_content", None
                     ),  # Complete webpage content (usually unused)
-                    relevant_chunks=web_page.get(
-                        "content", None
-                    ),  # Tavily's pre-chunked content
+                    relevant_chunks=web_page.get("content", "").split(" [...] ") # Tavily returns chunks as a single strings with seperators
+                    if web_page.get("content")
+                    else None,  # Tavily's pre-chunked content
                 )
                 parsed_results.append(result)
 
@@ -115,7 +116,6 @@ class TavilyWebRAG(BaseWebRAG):
                     query=query,
                     results=[],
                     summary=None,
-                    total_results=0,
                     search_time_ms=int(
                         (datetime.now() - start_time).total_seconds() * 1000
                     ),
@@ -133,7 +133,6 @@ class TavilyWebRAG(BaseWebRAG):
                 query=query,
                 results=parsed_results,
                 summary=api_response.get("answer", None),
-                total_results=len(parsed_results),
                 search_time_ms=search_time,
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )

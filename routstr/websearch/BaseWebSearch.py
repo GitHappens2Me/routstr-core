@@ -4,6 +4,7 @@ Base class for Web search for AI context enhancement using Retrieval Augmented G
 """
 
 import json
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -16,7 +17,7 @@ from .types import SearchResult
 logger = get_logger(__name__)
 
 
-class BaseWebSearch:
+class BaseWebSearch(ABC):
     """Base class for web search providers."""
 
     provider_name: str = "Base"
@@ -40,9 +41,9 @@ class BaseWebSearch:
             "facebook.com",
             }
 
+    @abstractmethod
     async def search(self, query: str, max_results: int = 5) -> SearchResult:
         """Perform web search and return results."""
-        raise NotImplementedError("Subclasses must implement search method")
 
     async def make_request(
         self,

@@ -43,7 +43,7 @@ class ExaWebRAG(BaseWebRAG):
         self.api_key = api_key
         logger.info("ExaWebRAG initialized.")
 
-    async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
+    async def retrieve_context(self, query: str, max_results: int = 10) -> SearchResult:
         """
         Perform RAG retrieval using Exa's neural search API.
 
@@ -77,12 +77,11 @@ class ExaWebRAG(BaseWebRAG):
 
             # print(api_response)
             for i, web_page in enumerate(exa_results):
-                # Combine highlights to single string
-                if highlights := web_page.get("highlights", None):
-                    highlights = " [...] ".join(highlights)
+                # Use highlights as list of strings
+                highlights = web_page.get("highlights", None)
 
                 result = WebPageContent(
-                    title=web_page.get("title", "No Title"),
+                    title=web_page.get("title", None),
                     url=web_page.get("url", "Unknown URL"),
                     summary=web_page.get("summary", None),
                     publication_date=web_page.get("publishedDate", None),
@@ -100,7 +99,6 @@ class ExaWebRAG(BaseWebRAG):
                     query=query,
                     results=[],
                     summary=None,
-                    total_results=0,
                     search_time_ms=int(
                         (datetime.now() - start_time).total_seconds() * 1000
                     ),
@@ -117,7 +115,6 @@ class ExaWebRAG(BaseWebRAG):
                 query=query,
                 results=parsed_results,
                 summary=None,
-                total_results=len(parsed_results),
                 search_time_ms=search_time,
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )

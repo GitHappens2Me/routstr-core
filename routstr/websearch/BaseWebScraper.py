@@ -9,6 +9,7 @@ for testing and development.
 import asyncio
 import os
 import re
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List, Optional
 
@@ -27,7 +28,7 @@ class ScrapeFailureError(Exception):
     pass
 
 
-class BaseWebScraper:
+class BaseWebScraper(ABC):
     """Base class for web scrapers."""
 
     scraper_name: str = "base"
@@ -44,15 +45,15 @@ class BaseWebScraper:
         }
         self.client_redirects: bool = True
 
+    @abstractmethod
     async def scrape_url(self, url: str, client: httpx.AsyncClient) -> Optional[str]:
         """Scrape content from a single URL."""
-        raise NotImplementedError("Subclasses must implement scrape_url method")
 
+    @abstractmethod
     async def scrape_webpages(
         self, webpages: List[WebPageContent], max_concurrent: int = 10
     ) -> List[WebPageContent]:
         """Scrape multiple webpages concurrently."""
-        raise NotImplementedError("Subclasses must implement scrape_webpages method")
 
     # TODO: return SearchResult or modify in place?
     # I think returning a new obj would be better

@@ -62,7 +62,7 @@ class CustomRAG(BaseWebRAG):
             f"{scrape_provider.__class__.__name__}, {chunk_provider.__class__.__name__}"
         )
 
-    async def retrieve(self, query: str, max_results: int = 10) -> SearchResult:
+    async def retrieve_context(self, query: str, max_results: int = 10) -> SearchResult:
         """
         Execute complete manual RAG pipeline.
 
@@ -94,7 +94,6 @@ class CustomRAG(BaseWebRAG):
                     query=query,
                     results=[],
                     summary=None,
-                    total_results=0,
                     search_time_ms=int(
                         (datetime.now() - start_time).total_seconds() * 1000
                     ),

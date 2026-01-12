@@ -7,6 +7,7 @@ AI context enhancement.
 """
 
 import json
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -18,7 +19,7 @@ from .types import SearchResult
 logger = get_logger(__name__)
 
 
-class BaseWebRAG:
+class BaseWebRAG(ABC):
     """Base class for RAG providers.
 
     Defines the interface for providers that handle the complete RAG pipeline in single unified API call.
@@ -30,7 +31,8 @@ class BaseWebRAG:
         # httpx.AsyncClient configuration:
         self.client_timeout: httpx.Timeout = httpx.Timeout(3.0, connect=3.0)
         self.client_headers: dict = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            # TODO: Add a Routstr-specific user agent (might increase blocked responses)
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
         }
         self.client_redirects: bool = True
 
@@ -72,14 +74,14 @@ class BaseWebRAG:
         url = f"{self.base_url}{endpoint}"
 
         request_headers = self.client_headers.copy()
-        if headers:
+        if headers: 
             request_headers.update(headers)
 
         async with httpx.AsyncClient(
             timeout=self.client_timeout,
             headers=self.client_headers,
             follow_redirects=True,
-        ) as client:
+        ) as client:    
             try:
                 if method.upper() == "GET":
                     response = await client.get(url, headers=request_headers)
@@ -102,7 +104,8 @@ class BaseWebRAG:
                 logger.error(error_msg)
                 raise Exception(error_msg) from e
 
-    async def retrieve(self, query: str, max_results: int = 5) -> SearchResult:
+    @abstractmethod
+    async def retrieve_context(self, query: str, max_results: int = 5) -> SearchResult:
         """Perform web retrieval
 
         Args:
@@ -111,12 +114,9 @@ class BaseWebRAG:
 
         Returns:
             SearchResult with processed content, chunks, and metadata
-
-        Raises:
-            NotImplementedError: Subclasses must implement this method
         """
-        raise NotImplementedError("Subclasses must implement retrieve method")
 
+    @abstractmethod
     async def check_availability(self) -> bool:
         """Check if the RAG provider service is available and API key is valid.
 
@@ -127,11 +127,7 @@ class BaseWebRAG:
 
         Returns:
             True if provider is available and functional, False otherwise
-
-        Raises:
-            NotImplementedError: Subclasses must implement this method
         """
-        raise NotImplementedError("Subclasses must implement check_availability method")
 
 
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:

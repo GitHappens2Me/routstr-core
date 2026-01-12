@@ -100,7 +100,7 @@ class BaseWebChunker(ABC):
                 chunks = await self.chunk_text(result.content)
                 ranked_chunks = self.rank_chunks(chunks, query)
                 ranked_chunks = ranked_chunks[: settings.chunk_max_chunks_per_source]
-                result.relevant_chunks = " [...] ".join(ranked_chunks)
+                result.relevant_chunks = ranked_chunks
                 logger.debug(
                     f"Selected {len(ranked_chunks)}/{len(chunks)} chunks for {result.url}. "
                     f"{sum(len(s) for s in ranked_chunks)}/{sum(len(s) for s in chunks)} characters included."

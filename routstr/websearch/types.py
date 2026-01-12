@@ -10,14 +10,15 @@ class WebPageContent:
     relevance-ranked chunks ready for AI context injection.
     """
 
-    title: str
+
     url: str
+    title: Optional[str] = None
     summary: Optional[str] = None
     publication_date: Optional[str] = None
     relevance_score: Optional[float] = None
     content: Optional[str] = None  # Complete webpage content
-    relevant_chunks: Optional[str] = (
-        None  # Relevant chunks combined into one LLM-readable string.
+    relevant_chunks: Optional[List[str]] = (
+        None  # List of relevant chunks.
     )
 
 
@@ -32,6 +33,5 @@ class SearchResult:
     query: str
     results: List[WebPageContent]  # TODO:Rename to pages?
     summary: Optional[str] = None
-    total_results: Optional[int] = None
     timestamp: Optional[str] = None
     search_time_ms: Optional[int] = None
