@@ -71,53 +71,10 @@ class ExaWebRAG(BaseWebRAG):
             # await self._save_api_response(api_response, query, "exa")
             # ---------------------------------------------------------------
 
-            # Parse the results from Exa response
-            exa_results = api_response.get("results", [])
-            parsed_results = []
-
-            # print(api_response)
-            for i, web_page in enumerate(exa_results):
-                # Use highlights as list of strings
-                highlights = web_page.get("highlights", None)
-
-                result = WebPageContent(
-                    title=web_page.get("title", None),
-                    url=web_page.get("url", "Unknown URL"),
-                    summary=web_page.get("summary", None),
-                    publication_date=web_page.get("publishedDate", None),
-                    relevance_score=web_page.get(
-                        "score", 1.0 - (i * 0.1)
-                    ),  # Fallback assumes results in order of relevance
-                    content=web_page.get("text", None),
-                    relevant_chunks=highlights,
-                )
-                parsed_results.append(result)
-
-            if not parsed_results:
-                logger.warning(f"No results found for query: '{query}'")
-                return SearchResult(  # TODO: just return None?
-                    query=query,
-                    results=[],
-                    summary=None,
-                    search_time_ms=int(
-                        (datetime.now() - start_time).total_seconds() * 1000
-                    ),
-                    timestamp=datetime.now(timezone.utc).isoformat(),
-                )
-
             # Calculate search time
-            search_time = int((datetime.now() - start_time).total_seconds() * 1000)
-            logger.info(
-                f"Exa search completed successfully: {len(parsed_results)} results in {search_time}ms"
-            )
+            search_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-            return SearchResult(
-                query=query,
-                results=parsed_results,
-                summary=None,
-                search_time_ms=search_time,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
+            return self._map_to_search_result(api_response, query, search_time_ms)
 
         except json.JSONDecodeError as e:
             error_msg = f"Failed to parse Exa API response for query '{query}': {e}"
@@ -129,6 +86,55 @@ class ExaWebRAG(BaseWebRAG):
             )
             logger.error(error_msg)
             raise Exception(error_msg)
+
+    def _map_to_search_result(
+        self, api_response: Dict[str, Any], query: str, search_time_ms: int
+    ) -> SearchResult:
+        """
+        Map Exa API response to a SearchResult object.
+
+        Args:
+            api_response: The raw response from Exa API
+            query: The original search query
+            search_time_ms: Time taken for the search in milliseconds
+
+        Returns:
+            A populated SearchResult object
+        """
+        exa_results = api_response.get("results", [])
+        parsed_results = []
+
+        for i, web_page in enumerate(exa_results):
+            # Use highlights as list of strings
+            highlights = web_page.get("highlights", None)
+
+            result = WebPageContent(
+                title=web_page.get("title", None),
+                url=web_page.get("url", "Unknown URL"),
+                summary=web_page.get("summary", None),
+                publication_date=web_page.get("publishedDate", None),
+                relevance_score=web_page.get(
+                    "score", 1.0 - (i * 0.1)
+                ),  # Fallback assumes results in order of relevance
+                content=web_page.get("text", None),
+                relevant_chunks=highlights,
+            )
+            parsed_results.append(result)
+
+        if not parsed_results:
+            logger.warning(f"No results found for query: '{query}'")
+
+        logger.info(
+            f"Exa search completed successfully: {len(parsed_results)} results in {search_time_ms}ms"
+        )
+
+        return SearchResult(
+            query=query,
+            results=parsed_results,
+            summary=None,
+            search_time_ms=search_time_ms,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
 
     async def _call_exa_api(self, query: str, max_results: int = 10) -> Dict[str, Any]:
         """
@@ -159,10 +165,14 @@ class ExaWebRAG(BaseWebRAG):
                 "summary": False,  # Short summary of page content
                 "highlights": {  # Most relevant chunks
                     "numSentences": 3,  # Number of sentences per highlight
-                    "highlightsPerUrl": 5,  # Chunks per URL
+                    "highlightsPerUrl": 5,  # Chunks per URL #TODO: Use setting
                 },
+                "livecrawl": "preferred", #https://exa.ai/docs/reference/livecrawling-contents
+                "extras": {"links": 0, "imageLinks": 0},
+                "subpageTarget": None,
+                "subpages": 0,  # Do not scrape subpages
             },
-            "context": True,  # Enable context to get combined content for LLMs
+            "context": False,  # Enable context to get combined content for LLMs
             "includeText": None,
             "excludeText": None,
             "startCrawlDate": None,
@@ -170,12 +180,9 @@ class ExaWebRAG(BaseWebRAG):
             "startPublishedDate": None,
             "endPublishedDate": None,
             "includeDomains": None,
-            "excludeDomains": self.EXCLUDE_DOMAINS, #handle self.EXCLUDE_DOMAINS == None
+            "excludeDomains": list(self.EXCLUDE_DOMAINS) if self.EXCLUDE_DOMAINS else [],
             "category": None,
-            "subpageTarget": None,
-            "subpages": 0,  # Do not scrape subpages
-            "livecrawl": "never",
-            "extras": {"links": 0, "imageLinks": 0},
+
         }
 
         headers = {"Content-Type": "application/json", "x-api-key": self.api_key}

@@ -78,7 +78,7 @@ class TavilyWebRAG(BaseWebRAG):
         try:
             # --- MOCK DATA FOR TESTING  ---
             api_response = await self._load_mock_data(
-                "tavily_what_is_the_latest_news_about_the_Donald_Trump_peace_deal_Which_websites_did_you_search_be_brief.json"
+                "tavily_What_happend_between_the_US_and_Venezuela_20260113_113921.json"
                  #tavily_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150031.json
             )
             # ---------------------------------------------------------------
@@ -86,56 +86,10 @@ class TavilyWebRAG(BaseWebRAG):
             #await self._save_api_response(api_response, query, "tavily")
             # ---------------------------------------------------------------
 
-            #print(api_response)
-            # Parse the results from Tavily response
-            tavily_results = api_response.get("results", [])
-            parsed_results = []
-
-            #logger.debug(f"Tavily API response: {api_response}")
-            for i, web_page in enumerate(tavily_results):
-                result = WebPageContent(
-                    title=web_page.get("title", None),
-                    url=web_page.get("url", "Unknown URL"),
-                    summary=None,  # Summary not supported by tavily
-                    publication_date=None,  # Tavily doesn't provide publish date in basic search
-                    relevance_score=web_page.get(
-                        "score", 1.0 - (i * 0.1)
-                    ),  # Fallback assumes results in order of relevance
-                    content=web_page.get(
-                        "raw_content", None
-                    ),  # Complete webpage content (usually unused)
-                    relevant_chunks=web_page.get("content", "").split(" [...] ") # Tavily returns chunks as a single strings with seperators
-                    if web_page.get("content")
-                    else None,  # Tavily's pre-chunked content
-                )
-                parsed_results.append(result)
-
-            if not parsed_results:
-                logger.warning(f"No results found for query: '{query}'")
-                return SearchResult(
-                    query=query,
-                    results=[],
-                    summary=None,
-                    search_time_ms=int(
-                        (datetime.now() - start_time).total_seconds() * 1000
-                    ),
-                    timestamp=datetime.now(timezone.utc).isoformat(),
-                )
-
             # Calculate search time
-            search_time = int((datetime.now() - start_time).total_seconds() * 1000)
-            logger.info(
-                f"Tavily search completed successfully: {len(parsed_results)} results in {search_time}ms"
-            )
+            search_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-            logger.debug(f"Query: {query}, Results: {len(parsed_results)} items")
-            return SearchResult(
-                query=query,
-                results=parsed_results,
-                summary=api_response.get("answer", None),
-                search_time_ms=search_time,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
+            return self._map_to_search_result(api_response, query, search_time_ms)
 
         except json.JSONDecodeError as e:
             error_msg = f"Failed to parse Tavily API response for query '{query}': {e}"
@@ -147,6 +101,56 @@ class TavilyWebRAG(BaseWebRAG):
             )
             logger.error(error_msg)
             raise Exception(error_msg)
+
+    def _map_to_search_result(
+        self, api_response: Dict[str, Any], query: str, search_time_ms: int
+    ) -> SearchResult:
+        """
+        Map Tavily API response to a SearchResult object.
+
+        Args:
+            api_response: The raw response from Tavily API
+            query: The original search query
+            search_time_ms: Time taken for the search in milliseconds
+
+        Returns:
+            A populated SearchResult object
+        """
+        tavily_results = api_response.get("results", [])
+        parsed_results = []
+
+        for i, web_page in enumerate(tavily_results):
+            result = WebPageContent(
+                title=web_page.get("title", None),
+                url=web_page.get("url", "Unknown URL"),
+                summary=None,  # Summary not supported by tavily
+                publication_date=None,  # Tavily doesn't provide publish date
+                relevance_score=web_page.get(
+                    "score", 1.0 - (i * 0.1)
+                ),  # Fallback assumes results in order of relevance
+                content=web_page.get(
+                    "raw_content", None
+                ),  # Complete webpage content (usually unused)
+                relevant_chunks=web_page.get("content", "").split(" [...] ")
+                if web_page.get("content")
+                else None,  # Tavily's pre-chunked content
+            )
+            parsed_results.append(result)
+
+        if not parsed_results:
+            logger.warning(f"No results found for query: '{query}'")
+
+        logger.info(
+            f"Tavily search completed successfully: {len(parsed_results)} results in {search_time_ms}ms"
+        )
+
+        return SearchResult(
+            query=query,
+            results=parsed_results,
+            summary=api_response.get("answer", None),
+            search_time_ms=search_time_ms,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
 
     async def _call_tavily_api(
         self, query: str, max_results: int = 10
@@ -172,14 +176,21 @@ class TavilyWebRAG(BaseWebRAG):
         # Tavily request payload with all-in-one RAG parameters
         payload = {
             "query": query,
+            "topic": "general", # Options: general, news, finance  
+            "auto_parameters": False,
+            "country": None,
             "search_depth": "advanced",  # Use advanced to get chunks functionality
+            "include_answer": False,  # Includes a summery when set True
             "include_images": False,  # We don't need images for RAG
+            "include_favicon": False,
             "include_raw_content": False,  # We'll use chunks instead of raw content
-            "max_results": min(max_results, 10),  # Tavily max is 10
-            "include_domains": None,
-            "exclude_domains": self.EXCLUDE_DOMAINS,#handle self.EXCLUDE_DOMAINS == None
-            "days": None,  # No time limit by default
-            "chunks_per_source": 3,  # number of chunks per source; Tavily's max: 3
+            "max_results": min(max_results, 20),  # Tavily max is 20 (2026-01-13)
+            "exclude_domains": list(self.EXCLUDE_DOMAINS) if self.EXCLUDE_DOMAINS else [],
+            "time_range": None,  # No filtering by publishing date
+            "start_date": None,
+            "end_date": None,
+            "chunks_per_source": 3,  #TODO: use setting # number of chunks per source; Tavily's max: 3
+            "include_usage": True, # Can be used to update admin interface in the future
         }
 
         headers = {
