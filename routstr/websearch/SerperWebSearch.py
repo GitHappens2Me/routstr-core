@@ -43,7 +43,7 @@ class SerperWebSearch(BaseWebSearch):
 
     async def search(self, query: str, max_results: int = 10) -> SearchResult:
         """
-        Perform web search using the Serper API and return a WebSearchResponse.
+        Perform web search using the Serper API and return a SearchResponse.
         """
         start_time = datetime.now()
         logger.info(f"Performing Serper API search for: '{query}'")
@@ -52,12 +52,13 @@ class SerperWebSearch(BaseWebSearch):
         try:
             # --- MOCK DATA FOR TESTING ---
             api_response = await self._load_mock_data(
-                "serper_trump-peace-plan.json"
-                # serper_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150343.json
+                "serper_What_happend_between_the_US_and_Venezuela_20260115_103055.json"
+            #    "serper_trump-peace-plan.json"
+             #    serper_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150343.json
             )
             # ---------------------------------------------------------------
-            # api_response = await self._call_serper_api(query, max_results)
-            # await self._save_api_response(api_response, query, "serper")
+            #api_response = await self._call_serper_api(query, max_results)
+            #await self._save_api_response(api_response, query, "serper")
             # ---------------------------------------------------------------
 
             # Parse the results from the API response

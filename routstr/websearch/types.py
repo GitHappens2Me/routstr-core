@@ -3,6 +3,7 @@ from typing import List, Optional
 
 
 @dataclass(frozen=True)
+#TODO: rename to Webpage as it does store more then content?
 class WebPageContent:
     """Content retrieved from a single URL.
 

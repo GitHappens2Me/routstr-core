@@ -25,79 +25,110 @@ logger = get_logger(__name__)
 
 class ScrapeFailureError(Exception):
     """Custom exception for controlled scraping failures."""
-
     pass
 
 
 class BaseWebScraper(ABC):
-    """Base class for web scrapers."""
+    """
+    Base class for web scrapers.
+    
+    Handles the orchestration of concurrent scraping tasks, logging, and 
+    result aggregation. Subclasses are responsible for the specific 
+    transport layer (HTTP, Browser, etc.).
+    """
 
     scraper_name: str = "base"
 
     def __init__(self, output_dir: str = "scraped_html"):
         self.output_dir = output_dir
-        # Create the output directory if it doesn't exist
-        os.makedirs(self.output_dir, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True) #debugging TODO: remove
 
-        self.client_timeout: httpx.Timeout = httpx.Timeout(3.0, connect=3.0)
-        self.client_headers: dict = {
-            "Accept": "text/html, text/plain",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        }
-        self.client_redirects: bool = True
+    #@abstractmethod
+    async def scrape_url(self, webpage: WebPageContent) -> WebPageContent:
+        """
+        Scrape content for a single webpage object.
+        
+        Args:
+            webpage: The partially populated WebPageContent (contains URL).
+            
+        Returns:
+            A new WebPageContent object with 'content' (+ metadata fields) populated.
+            If scraping fails, return the original object (with content=None).
+        """
+        pass 
 
-    @abstractmethod
-    async def scrape_url(self, url: str, client: httpx.AsyncClient) -> Optional[str]:
-        """Scrape content from a single URL."""
 
-    @abstractmethod
+
     async def scrape_webpages(
         self, webpages: List[WebPageContent], max_concurrent: int = 10
     ) -> List[WebPageContent]:
-        """Scrape multiple webpages concurrently."""
+        """
+        Orchestrates concurrent scraping of multiple webpages.
+        """
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _bounded_scrape(page: WebPageContent) -> WebPageContent:
+            async with semaphore:
+                try:
+                    return await self.scrape_url(page)
+                except Exception as e:
+                    logger.error(f"Critical error scraping {page.url}: {e}")
+                    return page
+
+        tasks = [_bounded_scrape(page) for page in webpages]
+        
+        # Run all tasks
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Filter out system-level crashes (not scrape failures)
+        valid_results = []
+        for res in results:
+            if isinstance(res, WebPageContent):
+                valid_results.append(res)
+            else:
+                logger.error(f"Task failed with exception: {res}")
+        
+        return valid_results
 
     async def scrape_search_results(self, search_result: SearchResult) -> SearchResult:
         """
-        Scrape content from URLs in a SearchResult object and return a new SearchResult.
-
-        Args:
-            search_result: SearchResult object with URLs to scrape
-
-        Returns:
-            A new SearchResult object with scraped content populated
+        Main Entry Point: Takes a SearchResult, scrapes URLs, returns updated SearchResult.
         """
         if not search_result.results:
-            # TODO: better logging
-            
             logger.warning("No results to scrape")
             return search_result
 
         pages_to_scrape = search_result.results
-        num_pages_to_scrape = len(pages_to_scrape)
-        logger.info(f"Scraping {num_pages_to_scrape} URLs from search results")
+        count = len(pages_to_scrape)
+        logger.info(f"Scraping {count} URLs using {self.scraper_name}")
 
-        max_concurrent_scrapes = settings.web_scrape_max_concurrent_urls
         start_time = datetime.now()
-        scraped_webpages = await self.scrape_webpages(
-            pages_to_scrape, max_concurrent=max_concurrent_scrapes
+        
+        # Delegate to the concurrency manager
+        scraped_pages = await self.scrape_webpages(
+            pages_to_scrape, 
+            max_concurrent=settings.web_scrape_max_concurrent_urls
         )
+        
         scrape_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-
-        num_successful_scrapes = len([c for c in scraped_webpages if c.content])
+        success_count = len([p for p in scraped_pages if p.content])
 
         logger.info(
-            f"Scraped {num_successful_scrapes}/{num_pages_to_scrape} successfully in {scrape_time_ms}ms",
+            f"Scraped {success_count}/{count} successfully in {scrape_time_ms}ms",
             extra={
                 "scraping_summary": {
-                    "successful_count": num_successful_scrapes,
-                    "failed_count": num_pages_to_scrape - num_successful_scrapes,
-                    "total": num_pages_to_scrape,
-                    "milliseconds": scrape_time_ms,
+                    "successful": success_count,
+                    "failed": count - success_count,
+                    "total": count,
+                    "ms": scrape_time_ms,
                 }
             },
         )
+        return replace(search_result, results=scraped_pages)
 
-        return replace(search_result, results=scraped_webpages)
+
+
+
 
     def _sanitize_filename(self, url: str) -> str:
         """Create a safe filename from a URL."""

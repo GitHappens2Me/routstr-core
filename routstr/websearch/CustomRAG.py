@@ -100,7 +100,7 @@ class CustomRAG(BaseWebRAG):
                     ),
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 )
-
+            #TODO: rename to scrapes_response or something more descripitve
             search_response = await self.scraper_provider.scrape_search_results(search_response)
 
             if settings.enable_chunking and search_response.results:
@@ -138,13 +138,15 @@ class CustomRAG(BaseWebRAG):
         """
         try:
             # Check search provider availability
+            #TODO: BaseWebSearch should enforce check_availability -> Does serper have a usage endpoint?
             if hasattr(self.search_provider, "check_availability"):
                 search_available = await self.search_provider.check_availability()
             else:
                 # Fallback: assume available if no check method
                 search_available = True
 
-            # Check scraper availability (most scrapers don't have availability checks)
+            # Check scraper availability
+            #TODO: BaseWebScraper should also have a check_availability function ?
             scraper_available = True
 
             # Check chunker availability (validate parameters)
