@@ -44,7 +44,7 @@ class DefaultWebScraper(BaseWebScraper):
         self.max_response_size = 5_000_000 # 5MB
         self._shared_client: Optional[httpx.AsyncClient] = None
 
-    def check_availability(self) -> bool:
+    async def check_availability(self) -> bool:
         """Returns True if Trafilatura is installed and available."""
         return TRAFILATURA_AVAILABLE
 

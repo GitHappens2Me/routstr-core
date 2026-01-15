@@ -58,6 +58,13 @@ class BaseWebScraper(ABC):
         pass 
 
 
+    @abstractmethod
+    async def check_availability(self) -> bool:
+        """
+        Check if the scraping implementation is available.
+        Can include imported libraries or API health checks
+        Returns: True if available, False otherwise.
+        """
 
     async def scrape_webpages(
         self, webpages: List[WebPageContent], max_concurrent: int = 10

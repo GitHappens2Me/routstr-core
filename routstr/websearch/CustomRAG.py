@@ -15,6 +15,7 @@ from .BaseWebChunker import BaseWebChunker
 from .BaseWebRAG import BaseWebRAG
 from .BaseWebScraper import BaseWebScraper
 from .BaseWebSearch import BaseWebSearch
+from .BaseWebRanker import BaseWebRanker
 from .types import SearchResult
 
 logger = get_logger(__name__)
@@ -35,6 +36,7 @@ class CustomRAG(BaseWebRAG):
         search_provider: BaseWebSearch,
         scrape_provider: BaseWebScraper,
         chunk_provider: BaseWebChunker,
+        rank_provider: BaseWebRanker,
     ):
         """
         Initialize CustomRAG with pipeline components.
@@ -47,20 +49,21 @@ class CustomRAG(BaseWebRAG):
         Raises:
             ValueError: If any provider is None
         """
-        if not search_provider:
-            raise ValueError("Search provider cannot be None")
-        if not scrape_provider:
-            raise ValueError("Scraper provider cannot be None")
-        if not chunk_provider:
-            raise ValueError("Chunker provider cannot be None")
+        if not search_provider: raise ValueError("Search provider cannot be None")
+        if not scrape_provider: raise ValueError("Scraper provider cannot be None")
+        if not chunk_provider: raise ValueError("Chunker provider cannot be None")
+        if not rank_provider: raise ValueError("Ranker provider cannot be None")
+        
 
         self.search_provider = search_provider
         self.scraper_provider = scrape_provider
         self.chunker_provider = chunk_provider
+        self.rank_provider = rank_provider 
 
         logger.info(
             f"CustomRAG initialized with: {search_provider.__class__.__name__}, "
-            f"{scrape_provider.__class__.__name__}, {chunk_provider.__class__.__name__}"
+            f"{scrape_provider.__class__.__name__}, {chunk_provider.__class__.__name__}, "
+            f"{rank_provider.__class__.__name__}"
         )
 
     async def retrieve_context(self, query: str, max_results: int = 10) -> SearchResult:
@@ -100,11 +103,14 @@ class CustomRAG(BaseWebRAG):
                     ),
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 )
-            #TODO: rename to scrapes_response or something more descripitve
+            #TODO: rename to scrapes_response etc. or something more descripitve
             search_response = await self.scraper_provider.scrape_search_results(search_response)
 
-            if settings.enable_chunking and search_response.results:
-                search_response = await self.chunker_provider.chunk_search_results(search_response, query)
+            if search_response.results:
+                search_response = await self.chunker_provider.chunk_search_results(search_response)
+
+            search_response = await self.rank_provider.rank(search_response, query)
+
 
             # Calculate total pipeline time
             search_time = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -132,24 +138,20 @@ class CustomRAG(BaseWebRAG):
         - Web search provider
         - Web scraper provider
         - Chunker provider
+        
 
         Returns:
             True if all components are available, False otherwise
         """
         try:
             # Check search provider availability
-            #TODO: BaseWebSearch should enforce check_availability -> Does serper have a usage endpoint?
-            if hasattr(self.search_provider, "check_availability"):
-                search_available = await self.search_provider.check_availability()
-            else:
-                # Fallback: assume available if no check method
-                search_available = True
+            search_available = await self.search_provider.check_availability()
 
             # Check scraper availability
-            #TODO: BaseWebScraper should also have a check_availability function ?
-            scraper_available = True
+            scraper_available = await self.scraper_provider.check_availability()
 
-            # Check chunker availability (validate parameters)
+
+            # Check chunker availability #TODO make consistant to scraper and search
             chunker_available = self.chunker_provider.validate_parameters()
 
             all_available = search_available and scraper_available and chunker_available

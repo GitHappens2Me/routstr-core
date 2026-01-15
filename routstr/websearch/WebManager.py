@@ -4,10 +4,12 @@ from typing import Optional, Dict, Any, Tuple
 from ..core.logging import get_logger
 from ..core.settings import settings
 from .BaseWebChunker import BaseWebChunker
+from .BaseWebRanker import BaseWebRanker
 from .BaseWebRAG import BaseWebRAG
 from .BaseWebScraper import BaseWebScraper
-from .BaseWebSearch import BaseWebSearch, SearchResult
+from .BaseWebSearch import BaseWebSearch
 from .CustomRAG import CustomRAG
+from .types import SearchResult
 
 logger = get_logger(__name__)
 
@@ -23,6 +25,7 @@ class WebManager:
         self._search_provider: Optional[BaseWebSearch] = None
         self._scraper_provider: Optional[BaseWebScraper] = None
         self._chunker_provider: Optional[BaseWebChunker] = None
+        self._rank_provider: Optional[BaseWebRanker] = None 
 
     async def get_rag_provider(self) -> Optional[BaseWebRAG]:
         """
@@ -93,6 +96,7 @@ class WebManager:
                     search_provider = await self.get_web_search_provider()
                     scraper_provider = await self.get_web_scraper_provider()
                     chunker_provider = await self.get_web_chunker_provider()
+                    ranker_provider = await self.get_web_ranker_provider()
 
                     if not search_provider:
                         logger.warning(
@@ -109,9 +113,12 @@ class WebManager:
                             "Custom RAG provider selected but no chunker provider available"
                         )
                         return None
+                    if not ranker_provider: # Add validation
+                        logger.warning("Custom RAG provider selected but no ranker provider available")
+                        return None
 
                     custom_rag = CustomRAG(
-                        search_provider, scraper_provider, chunker_provider
+                        search_provider, scraper_provider, chunker_provider, ranker_provider 
                     )
                     if not await custom_rag.check_availability():
                         logger.warning(
@@ -236,6 +243,33 @@ class WebManager:
                 f"Unknown chunker provider: {chunker_name}. Chunking functionality disabled"
             )
             return None
+
+
+    async def get_web_ranker_provider(self) -> Optional[BaseWebRanker]:
+        """
+        Get ranker provider based on configuration.
+        Returns: Ranker provider instance or None if not available
+        """
+        if self._rank_provider:
+            return self._rank_provider
+
+        # If setting is missing, we'll default to 'bm25'
+        ranker_name = settings.web_ranking_provider.lower()
+
+        if ranker_name == "bm25":
+            try:
+                from .BM25WebRanker import BM25WebRanker
+                self._rank_provider = BM25WebRanker()
+                return self._rank_provider
+            except Exception as e:
+                logger.error(f"Failed to initialize BM25WebRanker: {e}")
+                return None
+        elif ranker_name == "none":
+            return None
+        else:
+            logger.error(f"Unknown ranker provider: {ranker_name}")
+            return None
+
 
     async def enhance_request_with_web_context(
         self, request_body: bytes
@@ -426,7 +460,7 @@ class WebManager:
         context_parts.append("Please use the provided search results to answer the user's request. If the information is not available in the results, state that you don't know based on the web search.")
         
         web_context = "\n".join(context_parts)
-        print(web_context)
+        #print(web_context) #TODO: DEBUG PRINT
         # Parse and enhance the request
         try:
             request_data = json.loads(request_body.decode("utf-8"))

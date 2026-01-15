@@ -18,7 +18,7 @@ class WebPageContent:
     publication_date: Optional[str] = None
     relevance_score: Optional[float] = None
     content: Optional[str] = None  # Complete webpage content
-    relevant_chunks: Optional[List[str]] = (
+    relevant_chunks: Optional[List[str]] = ( #TODO: Rename to chunks as this also contains all chunks after search, scrape and chukning
         None  # List of relevant chunks.
     )
 

@@ -10,7 +10,6 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from dataclasses import replace
-from rank_bm25 import BM25Okapi
 
 from ..core.logging import get_logger
 from ..core.settings import settings
@@ -51,41 +50,10 @@ class BaseWebChunker(ABC):
         Returns:
             List of text chunks as strings
         """
-        raise NotImplementedError("Subclasses must implement scrape_url method")
-
-    def rank_chunks(self, chunks: List[str], query: str) -> List[str]:
-        """
-        Rank chunks by relevance to the query.
-
-        Args:
-            chunks: List of text chunks to rank
-            query: Search query for relevance scoring (optional)
-
-        Returns:
-            List of chunks ranked by relevance (currently returns chunks as-is)
-        """
-        #print("top 5 chunks pre-ranking:")
-        #for chunk in chunks[:5]:
-        #    print(chunk)
-            
-        #if not chunks or not query:
-        #    return chunks
-        
-        corpus_words = [chunk.split() for chunk in chunks]
-        query_words = query.split()
-
-        bm25 = BM25Okapi(corpus_words)
-
-        ranked_chunks = bm25.get_top_n(query_words, chunks, n=len(chunks))
-
-
-        #print(f"top 5 chunks post-ranking with query {query}:")
-        #for chunk in ranked_chunks[:5]:
-        #    print(chunk)
-        return ranked_chunks
+        raise NotImplementedError("Subclasses must implement chunk_text method")
 
     async def chunk_search_results(
-        self, search_result: SearchResult, query: str
+        self, search_result: SearchResult
     ) -> SearchResult:
         """
         Chunk the content in search results concurrently and return a new SearchResult.
@@ -99,14 +67,8 @@ class BaseWebChunker(ABC):
                 return result
             try:
                 chunks = await self.chunk_text(result.content)
-                ranked_chunks = self.rank_chunks(chunks, query)
-                ranked_chunks = ranked_chunks[: settings.chunk_max_chunks_per_source]
-                
-                logger.debug(
-                    f"Selected {len(ranked_chunks)}/{len(chunks)} chunks for {result.url}. "
-                    f"{sum(len(s) for s in ranked_chunks)}/{sum(len(s) for s in chunks)} characters included."
-                )
-                return replace(result, relevant_chunks=ranked_chunks)
+
+                return replace(result, relevant_chunks=chunks)
             except Exception as e:
                 logger.error(f"Failed to chunk content for {result.url}: {e}")
                 return replace(result, relevant_chunks=None)

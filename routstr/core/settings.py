@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     enable_web_search: bool = Field(default=False, env="ENABLE_WEB_SEARCH")
 
     web_rag_provider: str = Field(default="", env="WEB_RAG_PROVIDER")
-    web_search_provider: str = Field(default="serper", env="WEB_SEARCH_PROVIDER")
+    web_search_provider: str = Field(default="", env="WEB_SEARCH_PROVIDER")
     web_scraper_provider: str = Field(default="default", env="WEB_SCRAPER_PROVIDER")
     serper_api_key: str = Field(default="", env="SERPER_API_KEY")
     tavily_api_key: str = Field(default="", env="TAVILY_API_KEY")
@@ -95,12 +95,13 @@ class Settings(BaseSettings):
 
     # Chunking Configuration [TODO: Remove?]
     enable_chunking: bool = Field(default=True, env="ENABLE_CHUNKING")
-    chunker_provider: str = Field(default="fixed", env="CHUNKER_PROVIDER")
+    chunker_provider: str = Field(default="recursive", env="CHUNKER_PROVIDER") #TODO: Rename: WEB_...
     chunk_max_size: int = Field(default=1000, env="CHUNK_MAX_SIZE")
     chunk_overlap: int = Field(default=200, env="CHUNK_OVERLAP")
     chunk_max_chunks_per_source: int = Field(
         default=5, env="CHUNK_MAX_CHUNKS_PER_SOURCE"
     )
+    web_ranking_provider: str = Field(default="", env="WEB_RANKING_PROVIDER")
 
     # Other
     chat_completions_api_version: str = Field(

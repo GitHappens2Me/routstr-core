@@ -45,6 +45,13 @@ class BaseWebSearch(ABC):
     async def search(self, query: str, max_results: int = 5) -> SearchResult:
         """Perform web search and return results."""
 
+    @abstractmethod
+    async def check_availability(self) -> bool:
+        """
+        Check if the search provider API is healthy and reachable.
+        Returns: True if available, False otherwise.
+        """
+
     async def make_request(
         self,
         method: str,
@@ -119,7 +126,7 @@ class BaseWebSearch(ABC):
         if domain.startswith("www."):
             domain = domain[4:]
         if domain in self.EXCLUDE_DOMAINS:
-            print(f"blocked: {url}")
+            print(f"blocked: {url}")# TODO: DEBUG Print
         return domain in self.EXCLUDE_DOMAINS
 
 

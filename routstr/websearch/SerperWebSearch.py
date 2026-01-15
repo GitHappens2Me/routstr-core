@@ -142,3 +142,29 @@ class SerperWebSearch(BaseWebSearch):
             headers=headers,
             payload=payload,
         )
+
+
+    async def check_availability(self) -> bool:
+        """
+        Check if the Serper API is available.
+        Returns: True if the API returns status 'ok', False otherwise.
+        """
+        logger.debug("Checking Serper API availability...")
+        try:
+        
+            response = await self.make_request(
+                method="GET", 
+                endpoint="/health"
+            )
+            
+            available = response.get("status") == "ok"
+            if available:
+                logger.info("Serper API health check passed.")
+            else:
+                logger.warning(f"Serper API health check returned unexpected status: {response}")
+            
+            return available
+            
+        except Exception as e:
+            logger.error(f"Serper API availability check failed: {e}")
+            return False
