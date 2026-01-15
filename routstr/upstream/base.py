@@ -5,7 +5,7 @@ import json
 import re
 import traceback
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Mapping, Tuple
+from typing import TYPE_CHECKING, Mapping
 
 import httpx
 from fastapi import BackgroundTasks, HTTPException, Request
@@ -344,7 +344,7 @@ class BaseUpstreamProvider:
         key: ApiKey,
         max_cost_for_model: int,
         web_search_executed: bool = False,
-        sources: list[dict] | None = None,
+        sources: dict[str, str] | None = None,
     ) -> StreamingResponse:
         """Handle streaming chat completion responses with token usage tracking and cost adjustment.
 
@@ -398,11 +398,11 @@ class BaseUpstreamProvider:
                                 "balance_after_adjustment": fresh_key.balance,
                             },
                         )
-                        
+
                         final_payload = {"cost": cost_data}
                         if sources:
                             final_payload["sources"] = sources
-                            
+
                         return f"data: {json.dumps(final_payload)}\n\n".encode()
                     except Exception as cost_error:
                         logger.error(
@@ -489,11 +489,11 @@ class BaseUpstreamProvider:
                                                         "balance_after_adjustment": fresh_key.balance,
                                                     },
                                                 )
-                                                
+
                                                 final_payload = {"cost": cost_data}
                                                 if sources:
                                                     final_payload["sources"] = sources
-                                                    
+
                                                 yield f"data: {json.dumps(final_payload)}\n\n".encode()
                                             except Exception as cost_error:
                                                 logger.error(
@@ -556,7 +556,7 @@ class BaseUpstreamProvider:
         session: AsyncSession,
         deducted_max_cost: int,
         web_search_executed: bool = False,
-        sources: list[dict] | None = None,
+        sources:dict[str, str] | None = None,
     ) -> Response:
         """Handle non-streaming chat completion responses with token usage tracking and cost adjustment.
 
@@ -699,13 +699,20 @@ class BaseUpstreamProvider:
         )
 
         web_search_executed = False
-        sources = []
+        sources: dict[str, str] = {}
         # Only search the web for chat completion
-        if path.endswith("chat/completions") and transformed_body and settings.enable_web_search and enable_web_search:
+        if (
+            path.endswith("chat/completions")
+            and transformed_body
+            and settings.enable_web_search
+            and enable_web_search
+        ):
             try:
                 logger.debug("Web search enabled and requested")
-                web_search_result = await web_manager.enhance_request_with_web_context(transformed_body)
-                if(web_search_result["success"]):
+                web_search_result = await web_manager.enhance_request_with_web_context(
+                    transformed_body
+                )
+                if web_search_result["success"]:
                     transformed_body = web_search_result["body"]
                     sources = web_search_result["sources"]
                     web_search_executed = True
@@ -729,7 +736,7 @@ class BaseUpstreamProvider:
                 "has_request_body": request_body is not None,
             },
         )
-        #print(request_body)
+        # print(request_body)
         client = httpx.AsyncClient(
             transport=httpx.AsyncHTTPTransport(retries=1),
             timeout=None,

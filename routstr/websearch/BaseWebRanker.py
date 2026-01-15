@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List
-from .types import SearchResult, WebPageContent
+
+from .types import SearchResult
+
 
 class BaseWebRanker(ABC):
     """Base class for search result ranking and pruning."""
-    
+
     def __init__(self, provider_name: str = "base"):
         self.provider_name = provider_name
 

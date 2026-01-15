@@ -38,13 +38,13 @@ class BaseWebRAG(ABC):
 
         # Domain Blocklist will be passed to RAG provider and used if domain exclusion is supported
         self.EXCLUDE_DOMAINS = {
-            "youtube.com", 
+            "youtube.com",
             "youtu.be",
             "vimeo.com",
             "tiktok.com",
-            "instagram.com", 
+            "instagram.com",
             "facebook.com",
-            }
+        }
 
     async def make_request(
         self,
@@ -74,14 +74,14 @@ class BaseWebRAG(ABC):
         url = f"{self.base_url}{endpoint}"
 
         request_headers = self.client_headers.copy()
-        if headers: 
+        if headers:
             request_headers.update(headers)
 
         async with httpx.AsyncClient(
             timeout=self.client_timeout,
             headers=self.client_headers,
             follow_redirects=True,
-        ) as client:    
+        ) as client:
             try:
                 if method.upper() == "GET":
                     response = await client.get(url, headers=request_headers)
@@ -128,7 +128,6 @@ class BaseWebRAG(ABC):
         Returns:
             True if provider is available and functional, False otherwise
         """
-
 
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:
         """Load mock API response data from local JSON file for testing purposes.
@@ -184,4 +183,3 @@ class BaseWebRAG(ABC):
             logger.info(f"API response saved to {file_path}")
         except Exception as e:
             logger.error(f"Failed to save API response: {e}")
-

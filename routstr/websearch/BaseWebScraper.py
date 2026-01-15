@@ -12,9 +12,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import replace
 from datetime import datetime
-from typing import List, Optional
-
-import httpx
+from typing import List
 
 from ..core.logging import get_logger
 from ..core.settings import settings
@@ -25,15 +23,16 @@ logger = get_logger(__name__)
 
 class ScrapeFailureError(Exception):
     """Custom exception for controlled scraping failures."""
+
     pass
 
 
 class BaseWebScraper(ABC):
     """
     Base class for web scrapers.
-    
-    Handles the orchestration of concurrent scraping tasks, logging, and 
-    result aggregation. Subclasses are responsible for the specific 
+
+    Handles the orchestration of concurrent scraping tasks, logging, and
+    result aggregation. Subclasses are responsible for the specific
     transport layer (HTTP, Browser, etc.).
     """
 
@@ -41,22 +40,21 @@ class BaseWebScraper(ABC):
 
     def __init__(self, output_dir: str = "scraped_html"):
         self.output_dir = output_dir
-        os.makedirs(self.output_dir, exist_ok=True) #debugging TODO: remove
+        os.makedirs(self.output_dir, exist_ok=True)  # debugging TODO: remove
 
-    #@abstractmethod
+    @abstractmethod
     async def scrape_url(self, webpage: WebPageContent) -> WebPageContent:
         """
         Scrape content for a single webpage object.
-        
+
         Args:
             webpage: The partially populated WebPageContent (contains URL).
-            
+
         Returns:
             A new WebPageContent object with 'content' (+ metadata fields) populated.
             If scraping fails, return the original object (with content=None).
         """
-        pass 
-
+        pass
 
     @abstractmethod
     async def check_availability(self) -> bool:
@@ -83,18 +81,16 @@ class BaseWebScraper(ABC):
                     return page
 
         tasks = [_bounded_scrape(page) for page in webpages]
-        
-        # Run all tasks
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Filter out system-level crashes (not scrape failures)
         valid_results = []
         for res in results:
             if isinstance(res, WebPageContent):
                 valid_results.append(res)
             else:
                 logger.error(f"Task failed with exception: {res}")
-        
+
         return valid_results
 
     async def scrape_search_results(self, search_result: SearchResult) -> SearchResult:
@@ -110,13 +106,11 @@ class BaseWebScraper(ABC):
         logger.info(f"Scraping {count} URLs using {self.scraper_name}")
 
         start_time = datetime.now()
-        
-        # Delegate to the concurrency manager
+
         scraped_pages = await self.scrape_webpages(
-            pages_to_scrape, 
-            max_concurrent=settings.web_scrape_max_concurrent_urls
+            pages_to_scrape, max_concurrent=settings.web_scrape_max_concurrent_urls
         )
-        
+
         scrape_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
         success_count = len([p for p in scraped_pages if p.content])
 
@@ -132,10 +126,6 @@ class BaseWebScraper(ABC):
             },
         )
         return replace(search_result, results=scraped_pages)
-
-
-
-
 
     def _sanitize_filename(self, url: str) -> str:
         """Create a safe filename from a URL."""

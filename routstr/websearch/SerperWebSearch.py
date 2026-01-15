@@ -33,12 +33,11 @@ class SerperWebSearch(BaseWebSearch):
         super().__init__()
 
         self.base_url = "https://google.serper.dev"
-        # 2. Now, do the Serper-specific initialization.
+
         if not api_key:
             raise ValueError("Serper API key cannot be empty.")
         self.api_key = api_key
 
-        # The logger from the parent will have already run, so you can add your own.
         logger.info("SerperWebSearch initialized with API key.")
 
     async def search(self, query: str, max_results: int = 10) -> SearchResult:
@@ -48,17 +47,16 @@ class SerperWebSearch(BaseWebSearch):
         start_time = datetime.now()
         logger.info(f"Performing Serper API search for: '{query}'")
 
-  
         try:
             # --- MOCK DATA FOR TESTING ---
             api_response = await self._load_mock_data(
                 "serper_What_happend_between_the_US_and_Venezuela_20260115_103055.json"
-            #    "serper_trump-peace-plan.json"
-             #    serper_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150343.json
+                #    "serper_trump-peace-plan.json"
+                #    serper_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150343.json
             )
             # ---------------------------------------------------------------
-            #api_response = await self._call_serper_api(query, max_results)
-            #await self._save_api_response(api_response, query, "serper")
+            # api_response = await self._call_serper_api(query, max_results)
+            # await self._save_api_response(api_response, query, "serper")
             # ---------------------------------------------------------------
 
             # Parse the results from the API response
@@ -71,8 +69,7 @@ class SerperWebSearch(BaseWebSearch):
                         url=item.get("link", "Unknown URL"),
                         summary=item.get("snippet", None),
                         publication_date=item.get("date", None),
-                        relevance_score=1.0
-                        - (i * 0.1),  # Simple relevance based on position
+                        relevance_score=1.0 - (i * 0.1),  #  relevance based on position
                         content=None,
                         relevant_chunks=None,
                     )
@@ -143,7 +140,6 @@ class SerperWebSearch(BaseWebSearch):
             payload=payload,
         )
 
-
     async def check_availability(self) -> bool:
         """
         Check if the Serper API is available.
@@ -151,20 +147,18 @@ class SerperWebSearch(BaseWebSearch):
         """
         logger.debug("Checking Serper API availability...")
         try:
-        
-            response = await self.make_request(
-                method="GET", 
-                endpoint="/health"
-            )
-            
+            response = await self.make_request(method="GET", endpoint="/health")
+
             available = response.get("status") == "ok"
             if available:
                 logger.info("Serper API health check passed.")
             else:
-                logger.warning(f"Serper API health check returned unexpected status: {response}")
-            
+                logger.warning(
+                    f"Serper API health check returned unexpected status: {response}"
+                )
+
             return available
-            
+
         except Exception as e:
             logger.error(f"Serper API availability check failed: {e}")
             return False

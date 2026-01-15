@@ -1,11 +1,11 @@
 import json
-from typing import Optional, Dict, Any, Tuple
+from typing import Any, Optional, Tuple
 
 from ..core.logging import get_logger
 from ..core.settings import settings
 from .BaseWebChunker import BaseWebChunker
-from .BaseWebRanker import BaseWebRanker
 from .BaseWebRAG import BaseWebRAG
+from .BaseWebRanker import BaseWebRanker
 from .BaseWebScraper import BaseWebScraper
 from .BaseWebSearch import BaseWebSearch
 from .CustomRAG import CustomRAG
@@ -20,12 +20,12 @@ class WebManager:
     Handles provider initialization, caching, and request enhancement.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._rag_provider: Optional[BaseWebRAG] = None
         self._search_provider: Optional[BaseWebSearch] = None
         self._scraper_provider: Optional[BaseWebScraper] = None
         self._chunker_provider: Optional[BaseWebChunker] = None
-        self._rank_provider: Optional[BaseWebRanker] = None 
+        self._rank_provider: Optional[BaseWebRanker] = None
 
     async def get_rag_provider(self) -> Optional[BaseWebRAG]:
         """
@@ -113,12 +113,17 @@ class WebManager:
                             "Custom RAG provider selected but no chunker provider available"
                         )
                         return None
-                    if not ranker_provider: # Add validation
-                        logger.warning("Custom RAG provider selected but no ranker provider available")
+                    if not ranker_provider:  # Add validation
+                        logger.warning(
+                            "Custom RAG provider selected but no ranker provider available"
+                        )
                         return None
 
                     custom_rag = CustomRAG(
-                        search_provider, scraper_provider, chunker_provider, ranker_provider 
+                        search_provider,
+                        scraper_provider,
+                        chunker_provider,
+                        ranker_provider,
                     )
                     if not await custom_rag.check_availability():
                         logger.warning(
@@ -218,7 +223,8 @@ class WebManager:
                 from .FixedSizeChunker import FixedSizeChunker
 
                 self._chunker_provider = FixedSizeChunker(
-                    chunk_size=settings.chunk_max_size, chunk_overlap=settings.chunk_overlap
+                    chunk_size=settings.chunk_max_size,
+                    chunk_overlap=settings.chunk_overlap,
                 )
                 return self._chunker_provider
             except Exception as e:
@@ -227,9 +233,10 @@ class WebManager:
         elif chunker_name == "recursive":
             try:
                 from .RecursiveChunker import RecursiveChunker
+
                 self._chunker_provider = RecursiveChunker(
                     chunk_size=settings.chunk_max_size,
-                    chunk_overlap=settings.chunk_overlap
+                    chunk_overlap=settings.chunk_overlap,
                 )
                 return self._chunker_provider
             except Exception as e:
@@ -243,7 +250,6 @@ class WebManager:
                 f"Unknown chunker provider: {chunker_name}. Chunking functionality disabled"
             )
             return None
-
 
     async def get_web_ranker_provider(self) -> Optional[BaseWebRanker]:
         """
@@ -259,6 +265,7 @@ class WebManager:
         if ranker_name == "bm25":
             try:
                 from .BM25WebRanker import BM25WebRanker
+
                 self._rank_provider = BM25WebRanker()
                 return self._rank_provider
             except Exception as e:
@@ -269,7 +276,6 @@ class WebManager:
         else:
             logger.error(f"Unknown ranker provider: {ranker_name}")
             return None
-
 
     async def enhance_request_with_web_context(
         self, request_body: bytes
@@ -296,13 +302,13 @@ class WebManager:
 
             if not rag_provider:
                 logger.warning("No RAG provider available, cannot enhance request")
-                return {"body": request_body, "sources": [], "success": False}
+                return {"body": request_body, "sources": {}, "success": False}
 
             # Extract query from request
             extracted_query = self._extract_query_from_request_body(request_body)
 
             if not extracted_query:
-                return {"body": request_body, "sources": [], "success": False}
+                return {"body": request_body, "sources": {}, "success": False}
 
             # Perform complete RAG pipeline (handles all complexity internally)
             max_web_searches = settings.web_search_max_results
@@ -329,7 +335,6 @@ class WebManager:
                 },
             )
             return {"body": request_body, "sources": [], "success": False}
-
 
     @staticmethod
     def extract_web_search_parameter(body: bytes | None) -> Tuple[bytes | None, bool]:
@@ -375,7 +380,6 @@ class WebManager:
             )
             return body, enable_web_search  # Still return the flag
 
-
     def _extract_query_from_request_body(self, request_body: bytes) -> str:
         """
         Extract search query from user messages in request body.
@@ -389,7 +393,7 @@ class WebManager:
         try:
             data = json.loads(request_body)
             messages = data.get("messages", [])
-            
+
             # Iterate in reverse (from end to start)
             for message in reversed(messages):
                 if message.get("role") == "user":
@@ -405,7 +409,7 @@ class WebManager:
 
     async def _inject_web_context_into_request(
         self, request_body: bytes, search_result: SearchResult, query: str
-    ) -> tuple[bytes, list[str]]:
+    ) -> tuple[bytes, dict[str, str]]:
         """
         Inject web search context into AI request, filtering out None values and empty content.
 
@@ -419,48 +423,53 @@ class WebManager:
         """
 
         if not search_result or not search_result.results:
-            return request_body, []
+            return request_body, {}
 
         # Prepare sources list for the response body
-        sources = []
+        sources: dict[str, str] = {}
 
         # Build structured XML context
         context_parts = ["<search_results>"]
-        context_parts.append(f"Websearch yielded {len(search_result.results)} relevant results for query '{query}'.\n")
+        context_parts.append(
+            f"Websearch yielded {len(search_result.results)} relevant results for query '{query}'.\n"
+        )
 
         if search_result.summary:
             context_parts.append(f"Summary: {search_result.summary}\n")
 
         for i, web_page in enumerate(search_result.results, 1):
+            sources[str(i)] = web_page.url
 
-            sources.append(web_page.url)
-            
-            result_block = [f"<result id=\"{i}\">"]
+            result_block = [f'<result id="{i}">']
             if web_page.title:
                 result_block.append(f"<title>{web_page.title}</title>")
             result_block.append(f"<url>{web_page.url}</url>")
-            
+
             if web_page.publication_date:
                 result_block.append(f"<date>{web_page.publication_date}</date>")
-            
+
             if web_page.relevance_score:
-                result_block.append(f"<relevance_score>{web_page.relevance_score}</relevance_score>")
-            
+                result_block.append(
+                    f"<relevance_score>{web_page.relevance_score}</relevance_score>"
+                )
+
             if web_page.summary:
                 result_block.append(f"<summary>{web_page.summary}</summary>")
-            
+
             if web_page.relevant_chunks:
                 joined_chunks = "\n\n".join(web_page.relevant_chunks)
                 result_block.append(f"<content>\n{joined_chunks}\n    </content>")
-            
+
             result_block.append("</result>")
             context_parts.append("\n".join(result_block))
 
         context_parts.append("</search_results>\n")
-        context_parts.append("Please use the provided search results to answer the user's request. If the information is not available in the results, state that you don't know based on the web search.")
-        
+        context_parts.append(
+            "Please use the provided search results to answer the user's request. If the information is not available in the results, state that you don't know based on the web search."
+        )
+
         web_context = "\n".join(context_parts)
-        #print(web_context) #TODO: DEBUG PRINT
+        # print(web_context) #TODO: DEBUG PRINT
         # Parse and enhance the request
         try:
             request_data = json.loads(request_body.decode("utf-8"))
@@ -478,7 +487,7 @@ class WebManager:
                 if messages[i].get("role") == "user":
                     last_user_index = i
                     break
-            
+
             if last_user_index != -1:
                 messages.insert(last_user_index, web_context_message)
             else:

@@ -7,14 +7,11 @@ following the same modular pattern as the web search and scraping components.
 
 import asyncio
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from typing import List
 
-from dataclasses import replace
-
 from ..core.logging import get_logger
-from ..core.settings import settings
 from .types import SearchResult, WebPageContent
-
 
 logger = get_logger(__name__)
 
@@ -52,9 +49,7 @@ class BaseWebChunker(ABC):
         """
         raise NotImplementedError("Subclasses must implement chunk_text method")
 
-    async def chunk_search_results(
-        self, search_result: SearchResult
-    ) -> SearchResult:
+    async def chunk_search_results(self, search_result: SearchResult) -> SearchResult:
         """
         Chunk the content in search results concurrently and return a new SearchResult.
         """
@@ -73,12 +68,8 @@ class BaseWebChunker(ABC):
                 logger.error(f"Failed to chunk content for {result.url}: {e}")
                 return replace(result, relevant_chunks=None)
 
-        tasks = [
-            process(result)
-            for result in search_result.results
-        ]
+        tasks = [process(result) for result in search_result.results]
 
-        # 3. Run all tasks concurrently and wait for them to complete.
         if tasks:
             chunked_webpages = await asyncio.gather(*tasks)
             return replace(search_result, results=list(chunked_webpages))

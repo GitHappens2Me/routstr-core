@@ -38,7 +38,7 @@ _unique_models: dict[str, Model] = {}  # Unique model.id -> Model (no duplicates
 async def initialize_upstreams() -> None:
     """Initialize upstream providers from database during application startup."""
     global _upstreams
-    _upstreams = await   init_upstreams()
+    _upstreams = await init_upstreams()
     logger.info(f"Initialized {len(_upstreams)} upstream providers")
     await refresh_model_maps()
 
@@ -161,10 +161,7 @@ async def proxy(
     model_obj = get_model_instance(model_id)
     if not model_obj:
         return create_error_response(
-            "invalid_model", 
-            f"Model '{model_id}' not found",
-            400, 
-            request=request
+            "invalid_model", f"Model '{model_id}' not found", 400, request=request
         )
 
     upstream = get_provider_for_model(model_id)

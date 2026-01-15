@@ -95,7 +95,9 @@ class Settings(BaseSettings):
 
     # Chunking Configuration [TODO: Remove?]
     enable_chunking: bool = Field(default=True, env="ENABLE_CHUNKING")
-    chunker_provider: str = Field(default="recursive", env="CHUNKER_PROVIDER") #TODO: Rename: WEB_...
+    chunker_provider: str = Field(
+        default="recursive", env="CHUNKER_PROVIDER"
+    )  # TODO: Rename: WEB_...
     chunk_max_size: int = Field(default=1000, env="CHUNK_MAX_SIZE")
     chunk_overlap: int = Field(default=200, env="CHUNK_OVERLAP")
     chunk_max_chunks_per_source: int = Field(

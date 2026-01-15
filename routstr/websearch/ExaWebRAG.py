@@ -167,7 +167,7 @@ class ExaWebRAG(BaseWebRAG):
                     "numSentences": 3,  # Number of sentences per highlight
                     "highlightsPerUrl": 5,  # Chunks per URL #TODO: Use setting
                 },
-                "livecrawl": "preferred", #https://exa.ai/docs/reference/livecrawling-contents
+                "livecrawl": "preferred",  # https://exa.ai/docs/reference/livecrawling-contents
                 "extras": {"links": 0, "imageLinks": 0},
                 "subpageTarget": None,
                 "subpages": 0,  # Do not scrape subpages
@@ -180,9 +180,10 @@ class ExaWebRAG(BaseWebRAG):
             "startPublishedDate": None,
             "endPublishedDate": None,
             "includeDomains": None,
-            "excludeDomains": list(self.EXCLUDE_DOMAINS) if self.EXCLUDE_DOMAINS else [],
+            "excludeDomains": list(self.EXCLUDE_DOMAINS)
+            if self.EXCLUDE_DOMAINS
+            else [],
             "category": None,
-
         }
 
         headers = {"Content-Type": "application/json", "x-api-key": self.api_key}

@@ -1,9 +1,7 @@
-import asyncio
-
-from dataclasses import replace
-from datetime import datetime
-from typing import List, Optional
 import logging
+from dataclasses import replace
+from typing import List, Optional
+
 import httpx
 
 from ..core.logging import get_logger
@@ -15,8 +13,7 @@ logger = get_logger(__name__)
 TRAFILATURA_AVAILABLE = False
 try:
     import trafilatura
-    # Silence third-party noise using standard logging calls
-    # This ensures Trafilatura doesn't flood your console/file logs.
+
     logging.getLogger("trafilatura").setLevel(logging.WARNING)
     logging.getLogger("htmldate").setLevel(logging.WARNING)
     logging.getLogger("tzlocal").setLevel(logging.ERROR)
@@ -26,42 +23,43 @@ except ImportError:
     trafilatura = None
 
 
-#TODO: rename: "HTTPScraper"
+# TODO: rename: "HTTPScraper"
 class DefaultWebScraper(BaseWebScraper):
     """
     High-performance scraper using HTTPX and Trafilatura.
     """
-    #TODO: Rename here to
+
+    # TODO: Rename here to
     scraper_name = "default"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.client_timeout = httpx.Timeout(5.0, connect=3.0)
         self.client_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             "Accept": "text/html, text/plain, application/xhtml+xml",
         }
-        self.max_response_size = 5_000_000 # 5MB
+        self.max_response_size = 5_000_000  # 5MB
         self._shared_client: Optional[httpx.AsyncClient] = None
 
     async def check_availability(self) -> bool:
         """Returns True if Trafilatura is installed and available."""
         return TRAFILATURA_AVAILABLE
 
-    async def scrape_webpages(self, webpages: List[WebPageContent], max_concurrent: int = 10) -> List[WebPageContent]:
+    async def scrape_webpages(
+        self, webpages: List[WebPageContent], max_concurrent: int = 10
+    ) -> List[WebPageContent]:
         """
-        Lifecycle Wrapper:
-        Opens a shared HTTP client, then calls the base class to handle the looping.
+        Creates shared HTTP client, then calls the base class to handle the looping.
         """
         async with httpx.AsyncClient(
             timeout=self.client_timeout,
             headers=self.client_headers,
             follow_redirects=True,
-            verify=True # strict SSL
+            verify=True,  # strict SSL
         ) as client:
             self._shared_client = client
             try:
-                # Delegate parallelization to the Base Class
                 return await super().scrape_webpages(webpages, max_concurrent)
             finally:
                 self._shared_client = None
@@ -70,23 +68,25 @@ class DefaultWebScraper(BaseWebScraper):
         """
         Concrete implementation of the scraping logic.
         """
-        # 1. Fetch Raw HTML
         raw_html = await self._fetch_html(webpage.url)
-        
-        if not raw_html:
-            return webpage # Return empty (content=None)
 
-        # 2. Extract Metadata & Content
+        if not raw_html:
+            return webpage  # Return empty (content=None)
+
         return self._extract_data(webpage, raw_html)
 
     async def _fetch_html(self, url: str) -> Optional[str]:
         """Handles the low-level HTTP streaming and safety checks."""
         client = self._shared_client
-        
+
         # Fallback: If scrape_url is called individually (not via scrape_webpages)
         local_client = None
         if not client:
-            local_client = httpx.AsyncClient(headers=self.client_headers, timeout=self.client_timeout, follow_redirects=True)
+            local_client = httpx.AsyncClient(
+                headers=self.client_headers,
+                timeout=self.client_timeout,
+                follow_redirects=True,
+            )
             client = local_client
 
         try:
@@ -99,7 +99,7 @@ class DefaultWebScraper(BaseWebScraper):
                 if not any(t in ctype for t in ["text/html", "text/plain", "xml"]):
                     raise ScrapeFailureError(f"Rejected non-text content: {ctype}")
 
-                # Size Limit Stream
+                # Check Size Limit
                 chunks = []
                 curr_size = 0
                 async for chunk in response.aiter_bytes():
@@ -107,9 +107,11 @@ class DefaultWebScraper(BaseWebScraper):
                     if curr_size > self.max_response_size:
                         raise ScrapeFailureError("Exceeded size limit")
                     chunks.append(chunk)
-                
+
                 content_bytes = b"".join(chunks)
-                return content_bytes.decode(response.encoding or "utf-8", errors="replace")
+                return content_bytes.decode(
+                    response.encoding or "utf-8", errors="replace"
+                )
 
         except Exception as e:
             logger.warning(f"Fetch failed for {url}: {e}")
@@ -120,7 +122,7 @@ class DefaultWebScraper(BaseWebScraper):
 
     def _extract_data(self, webpage: WebPageContent, html: str) -> WebPageContent:
         """Uses Trafilatura to populate the WebPageContent object."""
-        
+
         # Debug write
         # asyncio.create_task(self._write_debug_file(webpage.url, html, "raw_"))
 
@@ -128,29 +130,33 @@ class DefaultWebScraper(BaseWebScraper):
             return replace(webpage, content=html)
 
         try:
-            # A. Metadata Extraction
-            meta = trafilatura.extract_metadata(html, default_url=webpage.url, extensive=True)
-            
-            # B. Content Extraction
-            text = trafilatura.extract(
+            meta_data = trafilatura.extract_metadata(
+                html, default_url=webpage.url, extensive=True
+            )
+
+            content = trafilatura.extract(
                 html,
                 favor_precision=True,
                 include_tables=True,
                 deduplicate=True,
                 output_format="txt",
-                with_metadata=False
+                with_metadata=False,
             )
 
-            # C. Merge Logic
-            # We prioritize extracted metadata, falling back to existing data
             return replace(
                 webpage,
-                content=text if text else None, # If text is empty, leave content as None? Or raw html?
-                title=meta.title if (meta and meta.title) else webpage.title,
-                publication_date=meta.date if (meta and meta.date) else webpage.publication_date,
-                summary=meta.description if (meta and meta.description) else webpage.summary
+                content=content if content else None,
+                title=meta_data.title
+                if (meta_data and meta_data.title)
+                else webpage.title,
+                publication_date=meta_data.date
+                if (meta_data and meta_data.date)
+                else webpage.publication_date,
+                summary=meta_data.description
+                if (meta_data and meta_data.description)
+                else webpage.summary,
             )
-            
+
         except Exception as e:
             logger.error(f"Extraction failed for {webpage.url}: {e}")
             return webpage

@@ -3,7 +3,7 @@ from typing import List, Optional
 
 
 @dataclass(frozen=True)
-#TODO: rename to Webpage as it does store more then content?
+# TODO: rename to Webpage as it does store more then content?
 class WebPageContent:
     """Content retrieved from a single URL.
 
@@ -11,14 +11,15 @@ class WebPageContent:
     relevance-ranked chunks ready for AI context injection.
     """
 
-
     url: str
     title: Optional[str] = None
     summary: Optional[str] = None
     publication_date: Optional[str] = None
     relevance_score: Optional[float] = None
     content: Optional[str] = None  # Complete webpage content
-    relevant_chunks: Optional[List[str]] = ( #TODO: Rename to chunks as this also contains all chunks after search, scrape and chukning
+    relevant_chunks: Optional[
+        List[str]
+    ] = (  # TODO: Rename to chunks as this also contains all chunks after search, scrape and chukning
         None  # List of relevant chunks.
     )
 

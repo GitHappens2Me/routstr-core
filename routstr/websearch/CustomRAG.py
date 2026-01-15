@@ -10,12 +10,11 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from ..core.logging import get_logger
-from ..core.settings import settings
 from .BaseWebChunker import BaseWebChunker
 from .BaseWebRAG import BaseWebRAG
+from .BaseWebRanker import BaseWebRanker
 from .BaseWebScraper import BaseWebScraper
 from .BaseWebSearch import BaseWebSearch
-from .BaseWebRanker import BaseWebRanker
 from .types import SearchResult
 
 logger = get_logger(__name__)
@@ -49,16 +48,19 @@ class CustomRAG(BaseWebRAG):
         Raises:
             ValueError: If any provider is None
         """
-        if not search_provider: raise ValueError("Search provider cannot be None")
-        if not scrape_provider: raise ValueError("Scraper provider cannot be None")
-        if not chunk_provider: raise ValueError("Chunker provider cannot be None")
-        if not rank_provider: raise ValueError("Ranker provider cannot be None")
-        
+        if not search_provider:
+            raise ValueError("Search provider cannot be None")
+        if not scrape_provider:
+            raise ValueError("Scraper provider cannot be None")
+        if not chunk_provider:
+            raise ValueError("Chunker provider cannot be None")
+        if not rank_provider:
+            raise ValueError("Ranker provider cannot be None")
 
         self.search_provider = search_provider
         self.scraper_provider = scrape_provider
         self.chunker_provider = chunk_provider
-        self.rank_provider = rank_provider 
+        self.rank_provider = rank_provider
 
         logger.info(
             f"CustomRAG initialized with: {search_provider.__class__.__name__}, "
@@ -68,20 +70,20 @@ class CustomRAG(BaseWebRAG):
 
     async def retrieve_context(self, query: str, max_results: int = 10) -> SearchResult:
         """
-        Execute complete manual RAG pipeline.
+        Execute custom configurable RAG pipeline.
 
         Performs the full pipeline:
-        1. Web search using configured search provider
-        2. Content scraping using configured scraper
-        3. Text chunking using configured chunker
-        4. Returns unified SearchResult with processed content
+        1. Web search
+        2. Content scraping
+        3. Chunking
+        4. Ranking (keeps only relevant chunks)
 
         Args:
             query: The search query for retrieving relevant web content
             max_results: Maximum number of web sources to process
 
         Returns:
-            SearchResult with processed content, chunks, and metadata
+            SearchResult
 
         Raises:
             Exception: If any pipeline stage fails
@@ -103,14 +105,17 @@ class CustomRAG(BaseWebRAG):
                     ),
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 )
-            #TODO: rename to scrapes_response etc. or something more descripitve
-            search_response = await self.scraper_provider.scrape_search_results(search_response)
+            # TODO: rename to scrapes_response etc. or something more descripitve
+            search_response = await self.scraper_provider.scrape_search_results(
+                search_response
+            )
 
             if search_response.results:
-                search_response = await self.chunker_provider.chunk_search_results(search_response)
+                search_response = await self.chunker_provider.chunk_search_results(
+                    search_response
+                )
 
             search_response = await self.rank_provider.rank(search_response, query)
-
 
             # Calculate total pipeline time
             search_time = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -122,7 +127,7 @@ class CustomRAG(BaseWebRAG):
             return replace(
                 search_response,
                 search_time_ms=search_time,
-                timestamp=datetime.now(timezone.utc).isoformat()
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
         except Exception as e:
@@ -134,11 +139,7 @@ class CustomRAG(BaseWebRAG):
         """
         Verify all pipeline components are available and functional.
 
-        Checks availability of:
-        - Web search provider
-        - Web scraper provider
-        - Chunker provider
-        
+        Checks availability of all components
 
         Returns:
             True if all components are available, False otherwise
@@ -149,7 +150,6 @@ class CustomRAG(BaseWebRAG):
 
             # Check scraper availability
             scraper_available = await self.scraper_provider.check_availability()
-
 
             # Check chunker availability #TODO make consistant to scraper and search
             chunker_available = self.chunker_provider.validate_parameters()

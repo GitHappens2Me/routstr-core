@@ -79,11 +79,11 @@ class TavilyWebRAG(BaseWebRAG):
             # --- MOCK DATA FOR TESTING  ---
             api_response = await self._load_mock_data(
                 "tavily_What_happend_between_the_US_and_Venezuela_20260113_113921.json"
-                 #tavily_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150031.json
+                # tavily_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150031.json
             )
             # ---------------------------------------------------------------
-            #api_response = await self._call_tavily_api(query, max_results)
-            #await self._save_api_response(api_response, query, "tavily")
+            # api_response = await self._call_tavily_api(query, max_results)
+            # await self._save_api_response(api_response, query, "tavily")
             # ---------------------------------------------------------------
 
             # Calculate search time
@@ -176,7 +176,7 @@ class TavilyWebRAG(BaseWebRAG):
         # Tavily request payload with all-in-one RAG parameters
         payload = {
             "query": query,
-            "topic": "general", # Options: general, news, finance  
+            "topic": "general",  # Options: general, news, finance
             "auto_parameters": False,
             "country": None,
             "search_depth": "advanced",  # Use advanced to get chunks functionality
@@ -185,12 +185,14 @@ class TavilyWebRAG(BaseWebRAG):
             "include_favicon": False,
             "include_raw_content": False,  # We'll use chunks instead of raw content
             "max_results": min(max_results, 20),  # Tavily max is 20 (2026-01-13)
-            "exclude_domains": list(self.EXCLUDE_DOMAINS) if self.EXCLUDE_DOMAINS else [],
+            "exclude_domains": list(self.EXCLUDE_DOMAINS)
+            if self.EXCLUDE_DOMAINS
+            else [],
             "time_range": None,  # No filtering by publishing date
             "start_date": None,
             "end_date": None,
-            "chunks_per_source": 3,  #TODO: use setting # number of chunks per source; Tavily's max: 3
-            "include_usage": True, # Can be used to update admin interface in the future
+            "chunks_per_source": 3,  # TODO: use setting # number of chunks per source; Tavily's max: 3
+            "include_usage": True,  # Can be used to update admin interface in the future
         }
 
         headers = {

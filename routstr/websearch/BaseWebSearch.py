@@ -7,9 +7,9 @@ import json
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import httpx
-from urllib.parse import urlparse
 
 from ..core.logging import get_logger
 from .types import SearchResult
@@ -34,12 +34,13 @@ class BaseWebSearch(ABC):
         # Domain Blocklist will be used by Search provider if domain exclusion is supported
         # TODO: Unify this with BaseRAG.BLOCKED_DOMAINS?
         self.EXCLUDE_DOMAINS = {
-            "youtube.com", "youtu.be",
+            "youtube.com",
+            "youtu.be",
             "vimeo.com",
             "tiktok.com",
-            "instagram.com", 
+            "instagram.com",
             "facebook.com",
-            }
+        }
 
     @abstractmethod
     async def search(self, query: str, max_results: int = 5) -> SearchResult:
@@ -110,7 +111,6 @@ class BaseWebSearch(ABC):
                 logger.error(error_msg)
                 raise Exception(error_msg) from e
 
-    
     def is_blocked(self, url: str) -> bool:
         """Check if a URL's domain is in the blocklist.
 
@@ -126,9 +126,8 @@ class BaseWebSearch(ABC):
         if domain.startswith("www."):
             domain = domain[4:]
         if domain in self.EXCLUDE_DOMAINS:
-            print(f"blocked: {url}")# TODO: DEBUG Print
+            print(f"blocked: {url}")  # TODO: DEBUG Print
         return domain in self.EXCLUDE_DOMAINS
-
 
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:
         """
