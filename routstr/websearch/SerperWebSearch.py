@@ -11,6 +11,7 @@ from typing import Any, Dict
 from ..core.logging import get_logger
 from .BaseWebSearch import BaseWebSearch
 from .types import SearchResult, WebPageContent
+from .HTTPClient import HTTPClient
 
 logger = get_logger(__name__)
 
@@ -32,11 +33,16 @@ class SerperWebSearch(BaseWebSearch):
 
         super().__init__()
 
-        self.base_url = "https://google.serper.dev"
 
         if not api_key:
             raise ValueError("Serper API key cannot be empty.")
         self.api_key = api_key
+
+        
+        self.client = HTTPClient(
+            base_url="https://google.serper.dev",
+            default_headers={"X-API-KEY": api_key}
+        )
 
         logger.info("SerperWebSearch initialized with API key.")
 
@@ -109,36 +115,12 @@ class SerperWebSearch(BaseWebSearch):
             logger.error(error_msg)
             raise Exception(error_msg)
 
-    async def _call_serper_api(
-        self, query: str, max_results: int = 10
-    ) -> Dict[str, Any]:
-        """
-        Make a live API call to Serper search service.
-
-        Args:
-            query: The search query
-            max_results: Maximum number of results to return
-
-        Returns:
-            Dictionary containing the API response
-
-        Raises:
-            Exception: If API call fails or returns non-200 status
-        """
-
-        logger.debug(f"Making Serper API call for: '{query}'")
-        # Prepare Serper API request
-
-        headers = {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
-
-        payload = {"q": query, "num": max_results}
-
-        return await self.make_request(
-            method="POST",
-            endpoint="/search",
-            headers=headers,
-            payload=payload,
+    async def _call_serper_api(self, query: str, max_results: int) -> Dict[str, Any]:
+        return await self.client.post(
+            url="/search",
+            json_data={"q": query, "num": max_results}
         )
+
 
     async def check_availability(self) -> bool:
         """
@@ -147,7 +129,7 @@ class SerperWebSearch(BaseWebSearch):
         """
         logger.debug("Checking Serper API availability...")
         try:
-            response = await self.make_request(method="GET", endpoint="/health")
+            response = await self.client.get(url="/health")
 
             available = response.get("status") == "ok"
             if available:

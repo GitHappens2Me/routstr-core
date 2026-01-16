@@ -13,6 +13,7 @@ from typing import Any, Dict
 from ..core.logging import get_logger
 from .BaseWebRAG import BaseWebRAG
 from .types import SearchResult, WebPageContent
+from .HTTPClient import HTTPClient
 
 logger = get_logger(__name__)
 
@@ -36,11 +37,17 @@ class ExaWebRAG(BaseWebRAG):
         """
         super().__init__()
 
-        self.base_url = "https://api.exa.ai"
-
+        
         if not api_key:
             raise ValueError("Exa API key cannot be empty.")
+
+        self.client = HTTPClient(
+            base_url="https://api.exa.ai",
+            default_headers={"x-api-key": api_key}
+        )
+
         self.api_key = api_key
+
         logger.info("ExaWebRAG initialized.")
 
     async def retrieve_context(self, query: str, max_results: int = 10) -> SearchResult:
@@ -63,12 +70,13 @@ class ExaWebRAG(BaseWebRAG):
         try:
             # --- MOCK DATA FOR TESTING ---
             api_response = await self._load_mock_data(
-                "exa_what_is_the_latest_news_about_the_Donald_Trump_peace_deal_Which_websites_did_you_search_be_brief_20251219_163302.json"
+                "exa_What_happend_between_the_US_and_Venezuela_20260116_122619.json"
+                #"exa_what_is_the_latest_news_about_the_Donald_Trump_peace_deal_Which_websites_did_you_search_be_brief_20251219_163302.json"
                 # exa_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_145745.json
             )
             # ---------------------------------------------------------------
-            # api_response = await self._call_exa_api(query, max_results)
-            # await self._save_api_response(api_response, query, "exa")
+            #api_response = await self._call_exa_api(query, max_results)
+            #await self._save_api_response(api_response, query, "exa")
             # ---------------------------------------------------------------
 
             # Calculate search time
@@ -186,26 +194,32 @@ class ExaWebRAG(BaseWebRAG):
             "category": None,
         }
 
-        headers = {"Content-Type": "application/json", "x-api-key": self.api_key}
 
         # Make the API request
-        return await self.make_request(
-            method="POST",
-            endpoint="/search",
-            headers=headers,
-            payload=payload,
-        )
+        return await self.client.post(url="/search", json_data=payload)
 
     async def check_availability(
         self,
     ) -> bool:
         """
-        Verify Exa service availability and API key validity.
+        Verify Exa service availability.
+
+        Makes a lightweight call to Exa's health endpoint to confirm:
+        - Service is accessible and operational
+        
+        Exa's /health endpoint returns the string "I am healthy." if healthy
 
         Returns:
-            True if basic validation passes, False otherwise
-
+            True if Exa service is available, False otherwise
         """
-        # Exa does not suppor any way of checking availbility without using API-tokens
-        # Fallback: Assume availibity
-        return True
+        logger.info("Checking Exa API availability")
+
+        try:
+            await self.client.get(
+                url="/health",
+                return_json=False 
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Exa availability check failed: {e}")
+            return False

@@ -13,7 +13,7 @@ from typing import Any, Dict
 from ..core.logging import get_logger
 from .BaseWebRAG import BaseWebRAG
 from .types import SearchResult, WebPageContent
-
+from .HTTPClient import HTTPClient
 logger = get_logger(__name__)
 
 
@@ -40,10 +40,14 @@ class TavilyWebRAG(BaseWebRAG):
         """
         super().__init__()
 
-        self.base_url = "https://api.tavily.com"
-
         if not api_key:
             raise ValueError("Tavily API key cannot be empty.")
+
+        self.client = HTTPClient(
+            base_url="https://api.tavily.com",
+            default_headers={"Authorization": f"Bearer {api_key}"}
+        )
+    
         self.api_key = api_key
 
         logger.info("TavilyWebRAG initialized.")
@@ -201,23 +205,16 @@ class TavilyWebRAG(BaseWebRAG):
         }
 
         # Make the API request
-        return await self.make_request(
-            method="POST",
-            endpoint="/search",
-            headers=headers,
-            payload=payload,
-        )
+        return await self.client.post(url="/search", json_data=payload)
 
     async def check_availability(
         self,
     ) -> bool:
         """
-        Verify Tavily service availability and API key validity.
+        Verify Tavily service availability.
 
         Makes a lightweight call to Tavily's usage endpoint to confirm:
         - Service is accessible and operational
-        - API key is valid and authorized
-        - Rate limits and quotas are available
 
         Returns:
             True if Tavily service is available and API key is valid, False otherwise
@@ -229,9 +226,8 @@ class TavilyWebRAG(BaseWebRAG):
         }
 
         try:
-            await self.make_request(
-                method="GET",
-                endpoint="/usage",
+            await self.client.get(
+                url="/usage",
                 headers=headers,
             )
             return True

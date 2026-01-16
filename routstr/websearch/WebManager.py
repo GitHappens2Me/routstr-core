@@ -502,7 +502,7 @@ class WebManager:
         instructions = [
             "Use the sources above to answer the user's request as accurately as possible.",
             "If the sources do not contain enough information to answer the query, inform the user that the provided context is insufficient instead of speculating.",
-            "Cite sources using their ID in brackets, formatted as superscripts.",
+            "Cite sources using their ID in brackets (e.g. [1]), formatted as superscripts.",
             "Pay attention to the publication date (<date>), if available.",
         ]
 
