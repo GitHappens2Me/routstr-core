@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 from ..core.logging import get_logger
 from .BaseWebRAG import BaseWebRAG
-from .types import SearchResult, WebPageContent
+from .types import SearchResult, WebPage
 from .HTTPClient import HTTPClient
 logger = get_logger(__name__)
 
@@ -124,7 +124,7 @@ class TavilyWebRAG(BaseWebRAG):
         parsed_results = []
 
         for i, web_page in enumerate(tavily_results):
-            result = WebPageContent(
+            result = WebPage(
                 title=web_page.get("title", None),
                 url=web_page.get("url", "Unknown URL"),
                 summary=None,  # Summary not supported by tavily
@@ -135,7 +135,7 @@ class TavilyWebRAG(BaseWebRAG):
                 content=web_page.get(
                     "raw_content", None
                 ),  # Complete webpage content (usually unused)
-                relevant_chunks=web_page.get("content", "").split(" [...] ")
+                chunks=web_page.get("content", "").split(" [...] ")
                 if web_page.get("content")
                 else None,  # Tavily's pre-chunked content
             )
@@ -150,7 +150,7 @@ class TavilyWebRAG(BaseWebRAG):
 
         return SearchResult(
             query=query,
-            results=parsed_results,
+            webpages=parsed_results,
             summary=api_response.get("answer", None),
             search_time_ms=search_time_ms,
             timestamp=datetime.now(timezone.utc).isoformat(),

@@ -9,12 +9,12 @@ import re
 from typing import List
 
 from ..core.logging import get_logger
-from .BaseWebChunker import BaseWebChunker
+from .BaseWebChunk import BaseWebChunk
 
 logger = get_logger(__name__)
 
 
-class RecursiveChunker(BaseWebChunker):
+class RecursiveChunker(BaseWebChunk):
     """Recursive semantic text chunker.
 
     Splits text by hierarchy:

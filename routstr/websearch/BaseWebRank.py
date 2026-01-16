@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from .types import SearchResult
 
 
-class BaseWebRanker(ABC):
+class BaseWebRank(ABC):
     """Base class for search result ranking and pruning."""
 
     def __init__(self, provider_name: str = "base"):

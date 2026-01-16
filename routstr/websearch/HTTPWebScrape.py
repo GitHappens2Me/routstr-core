@@ -5,8 +5,8 @@ from typing import List, Optional
 import httpx
 
 from ..core.logging import get_logger
-from .BaseWebScraper import BaseWebScraper, ScrapeFailureError
-from .types import WebPageContent
+from .BaseWebScrape import BaseWebScrape, ScrapeFailureError
+from .types import WebPage
 
 logger = get_logger(__name__)
 
@@ -23,14 +23,12 @@ except ImportError:
     trafilatura = None
 
 
-# TODO: rename: "HTTPScraper"
-class DefaultWebScraper(BaseWebScraper):
+class HTTPWebScrape(BaseWebScrape):
     """
     High-performance scraper using HTTPX and Trafilatura.
     """
 
-    # TODO: Rename here to
-    scraper_name = "default"
+    scraper_name = "http"
 
     def __init__(self) -> None:
         super().__init__()
@@ -47,8 +45,8 @@ class DefaultWebScraper(BaseWebScraper):
         return TRAFILATURA_AVAILABLE
 
     async def scrape_webpages(
-        self, webpages: List[WebPageContent], max_concurrent: int = 10
-    ) -> List[WebPageContent]:
+        self, webpages: List[WebPage], max_concurrent: int = 10
+    ) -> List[WebPage]:
         """
         Creates shared HTTP client, then calls the base class to handle the looping.
         """
@@ -64,7 +62,7 @@ class DefaultWebScraper(BaseWebScraper):
             finally:
                 self._shared_client = None
 
-    async def scrape_url(self, webpage: WebPageContent) -> WebPageContent:
+    async def scrape_url(self, webpage: WebPage) -> WebPage:
         """
         Concrete implementation of the scraping logic.
         """
@@ -120,8 +118,8 @@ class DefaultWebScraper(BaseWebScraper):
             if local_client:
                 await local_client.aclose()
 
-    def _extract_data(self, webpage: WebPageContent, html: str) -> WebPageContent:
-        """Uses Trafilatura to populate the WebPageContent object."""
+    def _extract_data(self, webpage: WebPage, html: str) -> WebPage:
+        """Uses Trafilatura to populate the WebPage object."""
 
         # Debug write
         # asyncio.create_task(self._write_debug_file(webpage.url, html, "raw_"))

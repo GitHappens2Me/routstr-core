@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 from ..core.logging import get_logger
 from .BaseWebRAG import BaseWebRAG
-from .types import SearchResult, WebPageContent
+from .types import SearchResult, WebPage
 from .HTTPClient import HTTPClient
 
 logger = get_logger(__name__)
@@ -116,7 +116,7 @@ class ExaWebRAG(BaseWebRAG):
             # Use highlights as list of strings
             highlights = web_page.get("highlights", None)
 
-            result = WebPageContent(
+            result = WebPage(
                 title=web_page.get("title", None),
                 url=web_page.get("url", "Unknown URL"),
                 summary=web_page.get("summary", None),
@@ -125,7 +125,7 @@ class ExaWebRAG(BaseWebRAG):
                     "score", 1.0 - (i * 0.1)
                 ),  # Fallback assumes results in order of relevance
                 content=web_page.get("text", None),
-                relevant_chunks=highlights,
+                chunks=highlights,
             )
             parsed_results.append(result)
 
@@ -138,7 +138,7 @@ class ExaWebRAG(BaseWebRAG):
 
         return SearchResult(
             query=query,
-            results=parsed_results,
+            webpages=parsed_results,
             summary=None,
             search_time_ms=search_time_ms,
             timestamp=datetime.now(timezone.utc).isoformat(),

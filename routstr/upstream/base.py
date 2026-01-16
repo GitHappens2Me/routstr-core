@@ -704,7 +704,7 @@ class BaseUpstreamProvider:
         if (
             path.endswith("chat/completions")
             and transformed_body
-            and settings.enable_web_search
+            and web_manager.is_rag_enabled()
             and enable_web_search
         ):
             try:

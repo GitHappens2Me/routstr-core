@@ -10,7 +10,7 @@ from typing import Any, Dict
 
 from ..core.logging import get_logger
 from .BaseWebSearch import BaseWebSearch
-from .types import SearchResult, WebPageContent
+from .types import SearchResult, WebPage
 from .HTTPClient import HTTPClient
 
 logger = get_logger(__name__)
@@ -106,14 +106,14 @@ class SerperWebSearch(BaseWebSearch):
             url = item.get("link", "Unknown URL")
             
             if not self.is_blocked(url=url):
-                result = WebPageContent(
+                result = WebPage(
                     title=item.get("title", None),
                     url=url,
                     summary=item.get("snippet", None),
                     publication_date=item.get("date", None),
                     relevance_score=1.0 - (i * 0.1),  # Position-based relevance
                     content=None,           # Serper organic doesn't provide full content
-                    relevant_chunks=None,    # Serper doesn't provide RAG chunks
+                    chunks=None,    # Serper doesn't provide RAG chunks
                 )
                 parsed_results.append(result)
 
@@ -126,7 +126,7 @@ class SerperWebSearch(BaseWebSearch):
 
         return SearchResult(
             query=query,
-            results=parsed_results,
+            webpages=parsed_results,
             summary=None,  # Serper doesn't provide a generated answer in the organic endpoint
             search_time_ms=search_time_ms,
             timestamp=datetime.now(timezone.utc).isoformat(),

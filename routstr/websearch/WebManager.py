@@ -4,13 +4,20 @@ from typing import Any, Optional, Tuple
 
 from ..core.logging import get_logger
 from ..core.settings import settings
-from .BaseWebChunker import BaseWebChunker
+from .BaseWebChunk import BaseWebChunk
 from .BaseWebRAG import BaseWebRAG
-from .BaseWebRanker import BaseWebRanker
-from .BaseWebScraper import BaseWebScraper
+from .BaseWebRank import BaseWebRank
+from .BaseWebScrape import BaseWebScrape
 from .BaseWebSearch import BaseWebSearch
 from .CustomRAG import CustomRAG
-from .types import SearchResult
+from .types import (
+    RAGProvider,
+    SearchResult,
+    WebChunkProvider,
+    WebRankProvider,
+    WebScrapeProvider,
+    WebSearchProvider,
+)
 
 logger = get_logger(__name__)
 
@@ -24,9 +31,15 @@ class WebManager:
     def __init__(self) -> None:
         self._rag_provider: Optional[BaseWebRAG] = None
         self._search_provider: Optional[BaseWebSearch] = None
-        self._scraper_provider: Optional[BaseWebScraper] = None
-        self._chunker_provider: Optional[BaseWebChunker] = None
-        self._rank_provider: Optional[BaseWebRanker] = None
+        self._scraper_provider: Optional[BaseWebScrape] = None
+        self._chunker_provider: Optional[BaseWebChunk] = None
+        self._rank_provider: Optional[BaseWebRank] = None
+
+    def is_rag_enabled(self) -> bool:
+        """Check if RAG is enabled in settings."""
+        if not settings.web_rag_provider:
+            return False
+        return settings.web_rag_provider.lower() != RAGProvider.DISABLED
 
     async def get_rag_provider(self) -> Optional[BaseWebRAG]:
         """
@@ -43,14 +56,22 @@ class WebManager:
             logger.debug("No RAG_PROVIDER configured")
             return None
 
-        provider_name = settings.web_rag_provider.lower()
+        try:
+            provider_enum = RAGProvider(settings.web_rag_provider.lower())
+        except ValueError:
+            logger.error(f"Unknown RAG provider: {settings.web_rag_provider}")
+            return None
 
-        match provider_name:
-            case "tavily":
+        if provider_enum == RAGProvider.DISABLED:
+            logger.info("RAG is disabled")
+            return None
+
+        match provider_enum:
+            case RAGProvider.TAVILY:
                 try:
                     from .TavilyWebRAG import TavilyWebRAG
 
-                    if not settings.tavily_api_key:# TODO: I could move this to the init function
+                    if not settings.tavily_api_key:  # TODO: I could move this to the init function
                         logger.warning(
                             "Tavily selected as RAG provider but no API key configured"
                         )
@@ -69,7 +90,7 @@ class WebManager:
                     logger.error(f"Failed to initialize TavilyWebRAG: {e}")
                     return None
 
-            case "exa":
+            case RAGProvider.EXA:
                 try:
                     from .ExaWebRAG import ExaWebRAG
 
@@ -91,7 +112,7 @@ class WebManager:
                     logger.error(f"Failed to initialize ExaWebRAG: {e}")
                     return None
 
-            case "custom":
+            case RAGProvider.CUSTOM:
                 try:
                     # Initialize stages asynchonously
                     (
@@ -107,9 +128,7 @@ class WebManager:
                     )
 
                     # Check for missing components
-                    if not (
-                        search and scrape and chunk and rank
-                    ):
+                    if not (search and scrape and chunk and rank):
                         components = {
                             "search": search,
                             "scraper": scrape,
@@ -128,12 +147,12 @@ class WebManager:
 
                     # 3. Success: Mypy now knows these are not None
                     logger.info("Successfully initialized Custom RAG pipeline")
-                    custom_rag = CustomRAG(
-                        search, scrape, chunk, rank
-                    )
+                    custom_rag = CustomRAG(search, scrape, chunk, rank)
 
                     if not await custom_rag.check_availability():
-                        logger.error(f"CustomRAG initialized but some components are not available")
+                        logger.error(
+                            "CustomRAG initialized but some components are not available"
+                        )
                         return None
                     self._rag_provider = custom_rag
                     return self._rag_provider
@@ -141,10 +160,6 @@ class WebManager:
                 except Exception as e:
                     logger.error(f"Failed to initialize CustomRAG: {e}")
                     return None
-
-            case _:
-                logger.error(f"Unknown RAG provider: {provider_name}")
-                return None
 
     async def get_web_search_provider(self) -> Optional[BaseWebSearch]:
         """
@@ -161,27 +176,29 @@ class WebManager:
             logger.debug("No WEB_SEARCH_PROVIDER configured")
             return None
 
-        provider_name = settings.web_search_provider.lower()
-        if provider_name == "serper":
-            try:
-                from .SerperWebSearch import SerperWebSearch
+        try:
+            provider_enum = WebSearchProvider(settings.web_search_provider.lower())
+        except ValueError:
+            logger.error(f"Unknown web search provider: {settings.web_search_provider}")
+            return None
 
-                if not settings.serper_api_key:
-                    logger.warning("Serper provider selected but no API key configured")
+        match provider_enum:
+            case WebSearchProvider.SERPER:
+                try:
+                    from .SerperWebSearch import SerperWebSearch
+
+                    if not settings.serper_api_key:
+                        logger.warning("Serper provider selected but no API key configured")
+                        return None
+                    self._search_provider = SerperWebSearch(
+                        api_key=settings.serper_api_key
+                    )
+                    return self._search_provider
+                except Exception as e:
+                    logger.error(f"Failed to initialize SerperWebSearch: {e}")
                     return None
-                self._search_provider = SerperWebSearch(api_key=settings.serper_api_key)
-                return self._search_provider
-            except Exception as e:
-                logger.error(f"Failed to initialize SerperWebSearch: {e}")
-                return None
-        elif provider_name == "none":
-            logger.info("No web search provider configured")
-            return None
-        else:
-            logger.error(f"Unknown web search provider: {provider_name}")
-            return None
 
-    async def get_web_scraper_provider(self) -> Optional[BaseWebScraper]:
+    async def get_web_scraper_provider(self) -> Optional[BaseWebScrape]:
         """
         Get web scraper provider based on configuration.
 
@@ -191,25 +208,33 @@ class WebManager:
         if self._scraper_provider:
             return self._scraper_provider
 
-        scraper_name = settings.web_scraper_provider.lower()
+        provider_name = settings.web_scraper_provider.lower()
+        provider_enum = None
 
-        if scraper_name == "default":
-            try:
-                from .DefaultWebScraper import DefaultWebScraper
-
-                self._scraper_provider = DefaultWebScraper()
-                return self._scraper_provider
-            except Exception as e:
-                logger.error(f"Failed to initialize DefaultWebScraper: {e}")
-                return None
-
+        if not provider_name or provider_name == "none":
+            logger.info("No web scraper configured, defaulting to 'http'")
+            provider_enum = WebScrapeProvider.HTTP
         else:
-            logger.error(
-                f"Unknown web scraper provider: {scraper_name}. Web functionality disabled"
-            )
-            return None
+            try:
+                provider_enum = WebScrapeProvider(provider_name)
+            except ValueError:
+                logger.info(
+                    f"Unknown web scraper provider '{provider_name}', defaulting to 'http'"
+                )
+                provider_enum = WebScrapeProvider.HTTP
 
-    async def get_web_chunker_provider(self) -> Optional[BaseWebChunker]:
+        match provider_enum:
+            case WebScrapeProvider.HTTP:
+                try:
+                    from .HTTPWebScrape import HTTPWebScrape
+
+                    self._scraper_provider = HTTPWebScrape()
+                    return self._scraper_provider
+                except Exception as e:
+                    logger.error(f"Failed to initialize HTTPWebScrape: {e}")
+                    return None
+
+    async def get_web_chunker_provider(self) -> Optional[BaseWebChunk]:
         """
         Get chunker provider based on configuration.
 
@@ -219,42 +244,48 @@ class WebManager:
         if self._chunker_provider:
             return self._chunker_provider
 
-        chunker_name = settings.chunker_provider.lower()
+        chunker_name = settings.web_chunker_provider.lower()
+        provider_enum = None
 
-        if chunker_name == "fixed":
-            try:
-                from .FixedSizeChunker import FixedSizeChunker
-
-                self._chunker_provider = FixedSizeChunker(
-                    chunk_size=settings.chunk_max_size,
-                    chunk_overlap=settings.chunk_overlap,
-                )
-                return self._chunker_provider
-            except Exception as e:
-                logger.error(f"Failed to initialize FixedSizeChunker: {e}")
-                return None
-        elif chunker_name == "recursive":
-            try:
-                from .RecursiveChunker import RecursiveChunker
-
-                self._chunker_provider = RecursiveChunker(
-                    chunk_size=settings.chunk_max_size,
-                    chunk_overlap=settings.chunk_overlap,
-                )
-                return self._chunker_provider
-            except Exception as e:
-                logger.error(f"Failed to initialize RecursiveChunker: {e}")
-                return None
-        elif chunker_name == "none":
-            logger.info("No chunker configured. Chunking functionality disabled")
-            return None
+        if not chunker_name or chunker_name == "none":
+            logger.info("No chunker configured, defaulting to 'recursive'")
+            provider_enum = WebChunkProvider.RECURSIVE
         else:
-            logger.error(
-                f"Unknown chunker provider: {chunker_name}. Chunking functionality disabled"
-            )
-            return None
+            try:
+                provider_enum = WebChunkProvider(chunker_name)
+            except ValueError:
+                logger.info(
+                    f"Unknown chunker provider '{chunker_name}', defaulting to 'recursive'"
+                )
+                provider_enum = WebChunkProvider.RECURSIVE
 
-    async def get_web_ranker_provider(self) -> Optional[BaseWebRanker]:
+        match provider_enum:
+            case WebChunkProvider.FIXED:
+                try:
+                    from .FixedSizeChunker import FixedSizeChunker
+
+                    self._chunker_provider = FixedSizeChunker(
+                        chunk_size=settings.chunk_max_size,
+                        chunk_overlap=settings.chunk_overlap,
+                    )
+                    return self._chunker_provider
+                except Exception as e:
+                    logger.error(f"Failed to initialize FixedSizeChunker: {e}")
+                    return None
+            case WebChunkProvider.RECURSIVE:
+                try:
+                    from .RecursiveChunker import RecursiveChunker
+
+                    self._chunker_provider = RecursiveChunker(
+                        chunk_size=settings.chunk_max_size,
+                        chunk_overlap=settings.chunk_overlap,
+                    )
+                    return self._chunker_provider
+                except Exception as e:
+                    logger.error(f"Failed to initialize RecursiveChunker: {e}")
+                    return None
+
+    async def get_web_ranker_provider(self) -> Optional[BaseWebRank]:
         """
         Get ranker provider based on configuration.
         Returns: Ranker provider instance or None if not available
@@ -262,23 +293,31 @@ class WebManager:
         if self._rank_provider:
             return self._rank_provider
 
-        # If setting is missing, we'll default to 'bm25'
         ranker_name = settings.web_ranking_provider.lower()
+        provider_enum = None
 
-        if ranker_name == "bm25":
-            try:
-                from .BM25WebRanker import BM25WebRanker
-
-                self._rank_provider = BM25WebRanker()
-                return self._rank_provider
-            except Exception as e:
-                logger.error(f"Failed to initialize BM25WebRanker: {e}")
-                return None
-        elif ranker_name == "none":
-            return None
+        if not ranker_name or ranker_name == "none":
+            logger.info("No ranker configured, defaulting to 'bm25'")
+            provider_enum = WebRankProvider.BM25
         else:
-            logger.error(f"Unknown ranker provider: {ranker_name}")
-            return None
+            try:
+                provider_enum = WebRankProvider(ranker_name)
+            except ValueError:
+                logger.info(
+                    f"Unknown ranker provider '{ranker_name}', defaulting to 'bm25'"
+                )
+                provider_enum = WebRankProvider.BM25
+
+        match provider_enum:
+            case WebRankProvider.BM25:
+                try:
+                    from .BM25WebRank import BM25WebRank
+
+                    self._rank_provider = BM25WebRank()
+                    return self._rank_provider
+                except Exception as e:
+                    logger.error(f"Failed to initialize BM25WebRank: {e}")
+                    return None
 
     async def enhance_request_with_web_context(
         self, request_body: bytes
@@ -325,7 +364,7 @@ class WebManager:
             )
 
             # If we have results, it's a success
-            success = bool(search_result and search_result.results)
+            success = bool(search_result and search_result.webpages)
             return {"body": enhanced_body, "sources": sources, "success": success}
 
         except Exception as e:
@@ -425,11 +464,11 @@ class WebManager:
             Tuple of (Enhanced request body as bytes, List of source strings)
         """
 
-        if not search_result or not search_result.results:
+        if not search_result or not search_result.webpages:
             return request_body, {}
 
         # Prepare list of sources
-        sources = {str(i): res.url for i, res in enumerate(search_result.results, 1)}
+        sources = {str(i): res.url for i, res in enumerate(search_result.webpages, 1)}
 
         web_context = self._generate_xml_context(search_result, query)
 
@@ -476,12 +515,12 @@ class WebManager:
     def _generate_xml_context(self, search_result: SearchResult, query: str) -> str:
         """Helper to build the structured XML string."""
         parts = ["<search_results>"]
-        parts.append(f"Websearch yielded {len(search_result.results)} results for query: '{query}'")
+        parts.append(f"Websearch yielded {len(search_result.webpages)} results for query: '{query}'")
         
         if search_result.summary:
             parts.append(f"Summary: {search_result.summary}")
 
-        for i, page in enumerate(search_result.results, 1):
+        for i, page in enumerate(search_result.webpages, 1):
             res_block = [f'<source id="{i}">']
             res_block.append(f"  <title>{page.title or 'No Title'}</title>")
             res_block.append(f"  <url>{page.url}</url>")
@@ -489,8 +528,8 @@ class WebManager:
             if page.publication_date:
                 res_block.append(f"  <date>{page.publication_date}</date>")
             
-            if page.relevant_chunks:
-                content = " [...] ".join(page.relevant_chunks)
+            if page.chunks:
+                content = " [...] ".join(page.chunks)
                 res_block.append(f"  <content> {content} </content>")
             else:
                 res_block.append("  <error>No extractable content available for this source.</error>")

@@ -11,12 +11,12 @@ from dataclasses import replace
 from typing import List
 
 from ..core.logging import get_logger
-from .types import SearchResult, WebPageContent
+from .types import SearchResult, WebPage
 
 logger = get_logger(__name__)
 
 
-class BaseWebChunker(ABC):
+class BaseWebChunk(ABC):
     """Base class for content chunkers."""
 
     chunker_name: str = "base"
@@ -54,25 +54,25 @@ class BaseWebChunker(ABC):
         Chunk the content in search results concurrently and return a new SearchResult.
         """
         logger.info(
-            f"Chunking content for {len(search_result.results)} search results concurrently"
+            f"Chunking content for {len(search_result.webpages)} search results concurrently"
         )
 
-        async def process(result: WebPageContent) -> WebPageContent:
+        async def process(result: WebPage) -> WebPage:
             if not result.content:
                 return result
             try:
                 chunks = await self.chunk_text(result.content)
 
-                return replace(result, relevant_chunks=chunks)
+                return replace(result, chunks=chunks)
             except Exception as e:
                 logger.error(f"Failed to chunk content for {result.url}: {e}")
-                return replace(result, relevant_chunks=None)
+                return replace(result, chunks=None)
 
-        tasks = [process(result) for result in search_result.results]
+        tasks = [process(result) for result in search_result.webpages]
 
         if tasks:
             chunked_webpages = await asyncio.gather(*tasks)
-            return replace(search_result, results=list(chunked_webpages))
+            return replace(search_result, webpages=list(chunked_webpages))
 
         return search_result
 

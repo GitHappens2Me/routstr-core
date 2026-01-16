@@ -1,10 +1,34 @@
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import List, Optional
 
 
+class RAGProvider(StrEnum):
+    TAVILY = "tavily"
+    EXA = "exa"
+    CUSTOM = "custom"
+    DISABLED = "disabled"
+
+
+class WebSearchProvider(StrEnum):
+    SERPER = "serper"
+
+
+class WebScrapeProvider(StrEnum):
+    HTTP = "http"
+
+
+class WebChunkProvider(StrEnum):
+    FIXED = "fixed"
+    RECURSIVE = "recursive"
+
+
+class WebRankProvider(StrEnum):
+    BM25 = "bm25"
+
+
 @dataclass(frozen=True)
-# TODO: rename to Webpage as it does store more then content?
-class WebPageContent:
+class WebPage:
     """Content retrieved from a single URL.
 
     Represents processed web content including metadata, full text, and
@@ -17,23 +41,19 @@ class WebPageContent:
     publication_date: Optional[str] = None
     relevance_score: Optional[float] = None
     content: Optional[str] = None  # Complete webpage content
-    relevant_chunks: Optional[
-        List[str]
-    ] = (  # TODO: Rename to chunks as this also contains all chunks after search, scrape and chukning
-        None  # List of relevant chunks.
-    )
+    chunks: Optional[List[str]] = None  # List of chunks.
 
 
 @dataclass(frozen=True)
 class SearchResult:
     """Complete RAG search result containing processed web content and metadata.
 
-    Contains the list of processed WebPageContent objects along with search
+    Contains the list of processed WebPage objects along with search
     metadata like timing, result count, and optional AI-generated summaries.
     """
 
     query: str
-    results: List[WebPageContent]  # TODO:Rename to pages?
+    webpages: List[WebPage]
     summary: Optional[str] = None
     timestamp: Optional[str] = None
     search_time_ms: Optional[int] = None

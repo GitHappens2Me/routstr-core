@@ -16,7 +16,7 @@ from typing import List
 
 from ..core.logging import get_logger
 from ..core.settings import settings
-from .types import SearchResult, WebPageContent
+from .types import SearchResult, WebPage
 
 logger = get_logger(__name__)
 
@@ -27,7 +27,7 @@ class ScrapeFailureError(Exception):
     pass
 
 
-class BaseWebScraper(ABC):
+class BaseWebScrape(ABC):
     """
     Base class for web scrapers.
 
@@ -43,15 +43,15 @@ class BaseWebScraper(ABC):
         os.makedirs(self.output_dir, exist_ok=True)  # debugging TODO: remove
 
     @abstractmethod
-    async def scrape_url(self, webpage: WebPageContent) -> WebPageContent:
+    async def scrape_url(self, webpage: WebPage) -> WebPage:
         """
         Scrape content for a single webpage object.
 
         Args:
-            webpage: The partially populated WebPageContent (contains URL).
+            webpage: The partially populated WebPage (contains URL).
 
         Returns:
-            A new WebPageContent object with 'content' (+ metadata fields) populated.
+            A new WebPage object with 'content' (+ metadata fields) populated.
             If scraping fails, return the original object (with content=None).
         """
         pass
@@ -65,14 +65,14 @@ class BaseWebScraper(ABC):
         """
 
     async def scrape_webpages(
-        self, webpages: List[WebPageContent], max_concurrent: int = 10
-    ) -> List[WebPageContent]:
+        self, webpages: List[WebPage], max_concurrent: int = 10
+    ) -> List[WebPage]:
         """
         Orchestrates concurrent scraping of multiple webpages.
         """
         semaphore = asyncio.Semaphore(max_concurrent)
 
-        async def _bounded_scrape(page: WebPageContent) -> WebPageContent:
+        async def _bounded_scrape(page: WebPage) -> WebPage:
             async with semaphore:
                 try:
                     return await self.scrape_url(page)
@@ -86,7 +86,7 @@ class BaseWebScraper(ABC):
 
         valid_results = []
         for res in results:
-            if isinstance(res, WebPageContent):
+            if isinstance(res, WebPage):
                 valid_results.append(res)
             else:
                 logger.error(f"Task failed with exception: {res}")
@@ -97,11 +97,11 @@ class BaseWebScraper(ABC):
         """
         Main Entry Point: Takes a SearchResult, scrapes URLs, returns updated SearchResult.
         """
-        if not search_result.results:
+        if not search_result.webpages:
             logger.warning("No results to scrape")
             return search_result
 
-        pages_to_scrape = search_result.results
+        pages_to_scrape = search_result.webpages
         count = len(pages_to_scrape)
         logger.info(f"Scraping {count} URLs using {self.scraper_name}")
 
@@ -125,7 +125,7 @@ class BaseWebScraper(ABC):
                 }
             },
         )
-        return replace(search_result, results=scraped_pages)
+        return replace(search_result, webpages=scraped_pages)
 
     def _sanitize_filename(self, url: str) -> str:
         """Create a safe filename from a URL."""

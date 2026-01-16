@@ -10,10 +10,10 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from ..core.logging import get_logger
-from .BaseWebChunker import BaseWebChunker
+from .BaseWebChunk import BaseWebChunk
 from .BaseWebRAG import BaseWebRAG
-from .BaseWebRanker import BaseWebRanker
-from .BaseWebScraper import BaseWebScraper
+from .BaseWebRank import BaseWebRank
+from .BaseWebScrape import BaseWebScrape
 from .BaseWebSearch import BaseWebSearch
 from .types import SearchResult
 
@@ -33,9 +33,9 @@ class CustomRAG(BaseWebRAG):
     def __init__(
         self,
         search_provider: BaseWebSearch,
-        scrape_provider: BaseWebScraper,
-        chunk_provider: BaseWebChunker,
-        rank_provider: BaseWebRanker,
+        scrape_provider: BaseWebScrape,
+        chunk_provider: BaseWebChunk,
+        rank_provider: BaseWebRank,
     ):
         """
         Initialize CustomRAG with pipeline components.
@@ -94,23 +94,22 @@ class CustomRAG(BaseWebRAG):
         try:
             search_response = await self.search_provider.search(query, max_results)
 
-            if not search_response.results:
+            if not search_response.webpages:
                 logger.warning(f"No search results found for query: '{query}'")
                 return SearchResult(
                     query=query,
-                    results=[],
+                    webpages=[],
                     summary=None,
                     search_time_ms=int(
                         (datetime.now() - start_time).total_seconds() * 1000
                     ),
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 )
-            # TODO: rename to scrapes_response etc. or something more descripitve
             search_response = await self.scraper_provider.scrape_search_results(
                 search_response
             )
 
-            if search_response.results:
+            if search_response.webpages:
                 search_response = await self.chunker_provider.chunk_search_results(
                     search_response
                 )
@@ -120,7 +119,7 @@ class CustomRAG(BaseWebRAG):
             # Calculate total pipeline time
             search_time = int((datetime.now() - start_time).total_seconds() * 1000)
             logger.info(
-                f"CustomRAG pipeline completed: {len(search_response.results)} results in {search_time}ms"
+                f"CustomRAG pipeline completed: {len(search_response.webpages)} results in {search_time}ms"
             )
 
             # Update timing metadata and return a new object

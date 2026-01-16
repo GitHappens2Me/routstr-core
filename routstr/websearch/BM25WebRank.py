@@ -4,7 +4,7 @@ from typing import Dict, List, Set
 
 from ..core.logging import get_logger
 from ..core.settings import settings
-from .BaseWebRanker import BaseWebRanker
+from .BaseWebRank import BaseWebRank
 from .types import SearchResult
 
 logger = get_logger(__name__)
@@ -20,7 +20,7 @@ except ImportError:
     BM25Okapi = None
 
 
-class BM25WebRanker(BaseWebRanker):
+class BM25WebRank(BaseWebRank):
     """
     BM25-based ranker that performs local-to-global pruning.
     """
@@ -36,7 +36,7 @@ class BM25WebRanker(BaseWebRanker):
 
     async def rank(self, search_result: SearchResult, query: str) -> SearchResult:
         """Orchestrates the 2-step ranking process"""
-        if not RANK_BM25_AVAILABLE or not search_result.results:
+        if not RANK_BM25_AVAILABLE or not search_result.webpages:
             return search_result
 
         logger.info(
@@ -45,18 +45,18 @@ class BM25WebRanker(BaseWebRanker):
 
         # Statistics Tracking
         stats: Dict[str, Dict[str, int]] = {}
-        for p in search_result.results:
-            stats[p.url] = {"initial": len(p.relevant_chunks or [])}
+        for p in search_result.webpages:
+            stats[p.url] = {"initial": len(p.chunks or [])}
 
         # Local Pruning
         local_result = self._rank_local(search_result, query, top_k=self.local_k)
-        for p in local_result.results:
-            stats[p.url]["after_local"] = len(p.relevant_chunks or [])
+        for p in local_result.webpages:
+            stats[p.url]["after_local"] = len(p.chunks or [])
 
         # Global Pruning
         final_result = self._rank_global(local_result, query, total_k=self.global_k)
-        for p in final_result.results:
-            stats[p.url]["final"] = len(p.relevant_chunks or [])
+        for p in final_result.webpages:
+            stats[p.url]["final"] = len(p.chunks or [])
 
         self._print_report(query, stats)
 
@@ -67,24 +67,24 @@ class BM25WebRanker(BaseWebRanker):
     ) -> SearchResult:
         """Sorts and prunes chunks within each individual page."""
         updated_pages = []
-        for page in search_result.results:
-            if not page.relevant_chunks:
+        for page in search_result.webpages:
+            if not page.chunks:
                 updated_pages.append(page)
                 continue
 
-            sorted_chunks = self._sort_chunks(query, page.relevant_chunks)
-            updated_pages.append(replace(page, relevant_chunks=sorted_chunks[:top_k]))
+            sorted_chunks = self._sort_chunks(query, page.chunks)
+            updated_pages.append(replace(page, chunks=sorted_chunks[:top_k]))
 
-        return replace(search_result, results=updated_pages)
+        return replace(search_result, webpages=updated_pages)
 
     def _rank_global(
         self, search_result: SearchResult, query: str, total_k: int
     ) -> SearchResult:
         """Pools all chunks from all pages and picks the top global winners."""
         all_candidates = []
-        for page in search_result.results:
-            if page.relevant_chunks:
-                all_candidates.extend(page.relevant_chunks)
+        for page in search_result.webpages:
+            if page.chunks:
+                all_candidates.extend(page.chunks)
 
         if not all_candidates:
             return search_result
@@ -93,15 +93,15 @@ class BM25WebRanker(BaseWebRanker):
         winners_set: Set[str] = set(global_winners)
 
         final_pages = []
-        for page in search_result.results:
-            if not page.relevant_chunks:
+        for page in search_result.webpages:
+            if not page.chunks:
                 final_pages.append(page)
                 continue
 
-            surviving_chunks = [c for c in page.relevant_chunks if c in winners_set]
-            final_pages.append(replace(page, relevant_chunks=surviving_chunks))
+            surviving_chunks = [c for c in page.chunks if c in winners_set]
+            final_pages.append(replace(page, chunks=surviving_chunks))
 
-        return replace(search_result, results=final_pages)
+        return replace(search_result, webpages=final_pages)
 
     def _sort_chunks(self, query: str, chunks: List[str]) -> List[str]:
         """

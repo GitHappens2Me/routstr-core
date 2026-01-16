@@ -9,12 +9,12 @@ chunking approach and serves as a reliable fallback.
 from typing import List
 
 from ..core.logging import get_logger
-from .BaseWebChunker import BaseWebChunker
+from .BaseWebChunk import BaseWebChunk
 
 logger = get_logger(__name__)
 
 
-class FixedSizeChunker(BaseWebChunker):
+class FixedSizeChunker(BaseWebChunk):
     """Simple fixed-size character chunker."""
 
     chunker_name = "fixed"
