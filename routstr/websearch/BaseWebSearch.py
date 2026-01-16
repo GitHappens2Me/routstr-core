@@ -126,7 +126,7 @@ class BaseWebSearch(ABC):
         if domain.startswith("www."):
             domain = domain[4:]
         if domain in self.EXCLUDE_DOMAINS:
-            print(f"blocked: {url}")  # TODO: DEBUG Print
+            print(f"URL in excluded list: {url}")  # TODO: DEBUG Print
         return domain in self.EXCLUDE_DOMAINS
 
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:

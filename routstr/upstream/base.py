@@ -556,7 +556,7 @@ class BaseUpstreamProvider:
         session: AsyncSession,
         deducted_max_cost: int,
         web_search_executed: bool = False,
-        sources:dict[str, str] | None = None,
+        sources: dict[str, str] | None = None,
     ) -> Response:
         """Handle non-streaming chat completion responses with token usage tracking and cost adjustment.
 

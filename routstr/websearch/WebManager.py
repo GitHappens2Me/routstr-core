@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any, Optional, Tuple
 
@@ -49,7 +50,7 @@ class WebManager:
                 try:
                     from .TavilyWebRAG import TavilyWebRAG
 
-                    if not settings.tavily_api_key:
+                    if not settings.tavily_api_key:# TODO: I could move this to the init function
                         logger.warning(
                             "Tavily selected as RAG provider but no API key configured"
                         )
@@ -92,46 +93,48 @@ class WebManager:
 
             case "custom":
                 try:
-                    # Get individual providers for custom pipeline
-                    search_provider = await self.get_web_search_provider()
-                    scraper_provider = await self.get_web_scraper_provider()
-                    chunker_provider = await self.get_web_chunker_provider()
-                    ranker_provider = await self.get_web_ranker_provider()
-
-                    if not search_provider:
-                        logger.warning(
-                            "Custom RAG provider selected but no web search provider available"
-                        )
-                        return None
-                    if not scraper_provider:
-                        logger.warning(
-                            "Custom RAG provider selected but no web scraper provider available"
-                        )
-                        return None
-                    if not chunker_provider:
-                        logger.warning(
-                            "Custom RAG provider selected but no chunker provider available"
-                        )
-                        return None
-                    if not ranker_provider:  # Add validation
-                        logger.warning(
-                            "Custom RAG provider selected but no ranker provider available"
-                        )
-                        return None
-
-                    custom_rag = CustomRAG(
-                        search_provider,
-                        scraper_provider,
-                        chunker_provider,
-                        ranker_provider,
+                    # Initialize stages asynchonously
+                    (
+                        search,
+                        scrape,
+                        chunk,
+                        rank,
+                    ) = await asyncio.gather(
+                        self.get_web_search_provider(),
+                        self.get_web_scraper_provider(),
+                        self.get_web_chunker_provider(),
+                        self.get_web_ranker_provider(),
                     )
-                    if not await custom_rag.check_availability():
+
+                    # Check for missing components
+                    if not (
+                        search and scrape and chunk and rank
+                    ):
+                        components = {
+                            "search": search,
+                            "scraper": scrape,
+                            "chunker": chunk,
+                            "ranker": rank,
+                        }
+                        missing = [
+                            name
+                            for name, instance in components.items()
+                            if instance is None
+                        ]
                         logger.warning(
-                            "Custom RAG availability check failed - some components may be unavailable"
+                            f"Custom RAG failed to initialize. Missing: {', '.join(missing)}"
                         )
                         return None
 
-                    logger.info("Using Custom RAG provider")
+                    # 3. Success: Mypy now knows these are not None
+                    logger.info("Successfully initialized Custom RAG pipeline")
+                    custom_rag = CustomRAG(
+                        search, scrape, chunk, rank
+                    )
+
+                    if not await custom_rag.check_availability():
+                        logger.error(f"CustomRAG initialized but some components are not available")
+                        return None
                     self._rag_provider = custom_rag
                     return self._rag_provider
 
@@ -425,51 +428,12 @@ class WebManager:
         if not search_result or not search_result.results:
             return request_body, {}
 
-        # Prepare sources list for the response body
-        sources: dict[str, str] = {}
+        # Prepare list of sources
+        sources = {str(i): res.url for i, res in enumerate(search_result.results, 1)}
 
-        # Build structured XML context
-        context_parts = ["<search_results>"]
-        context_parts.append(
-            f"Websearch yielded {len(search_result.results)} relevant results for query '{query}'.\n"
-        )
+        web_context = self._generate_xml_context(search_result, query)
 
-        if search_result.summary:
-            context_parts.append(f"Summary: {search_result.summary}\n")
-
-        for i, web_page in enumerate(search_result.results, 1):
-            sources[str(i)] = web_page.url
-
-            result_block = [f'<result id="{i}">']
-            if web_page.title:
-                result_block.append(f"<title>{web_page.title}</title>")
-            result_block.append(f"<url>{web_page.url}</url>")
-
-            if web_page.publication_date:
-                result_block.append(f"<date>{web_page.publication_date}</date>")
-
-            if web_page.relevance_score:
-                result_block.append(
-                    f"<relevance_score>{web_page.relevance_score}</relevance_score>"
-                )
-
-            if web_page.summary:
-                result_block.append(f"<summary>{web_page.summary}</summary>")
-
-            if web_page.relevant_chunks:
-                joined_chunks = "\n\n".join(web_page.relevant_chunks)
-                result_block.append(f"<content>\n{joined_chunks}\n    </content>")
-
-            result_block.append("</result>")
-            context_parts.append("\n".join(result_block))
-
-        context_parts.append("</search_results>\n")
-        context_parts.append(
-            "Please use the provided search results to answer the user's request. If the information is not available in the results, state that you don't know based on the web search."
-        )
-
-        web_context = "\n".join(context_parts)
-        # print(web_context) #TODO: DEBUG PRINT
+        print(web_context) #TODO: DEBUG PRINT
         # Parse and enhance the request
         try:
             request_data = json.loads(request_body.decode("utf-8"))
@@ -506,6 +470,50 @@ class WebManager:
         except Exception as e:
             logger.error(f"Unexpected error during context injection: {e}")
             return request_body, sources
+
+
+
+    def _generate_xml_context(self, search_result: SearchResult, query: str) -> str:
+        """Helper to build the structured XML string."""
+        parts = ["<search_results>"]
+        parts.append(f"Websearch yielded {len(search_result.results)} results for query: '{query}'")
+        
+        if search_result.summary:
+            parts.append(f"Summary: {search_result.summary}")
+
+        for i, page in enumerate(search_result.results, 1):
+            res_block = [f'<source id="{i}">']
+            res_block.append(f"  <title>{page.title or 'No Title'}</title>")
+            res_block.append(f"  <url>{page.url}</url>")
+            
+            if page.publication_date:
+                res_block.append(f"  <date>{page.publication_date}</date>")
+            
+            if page.relevant_chunks:
+                content = " [...] ".join(page.relevant_chunks)
+                res_block.append(f"  <content> {content} </content>")
+            else:
+                res_block.append("  <error>No extractable content available for this source.</error>")
+                
+            res_block.append("</source>")
+            parts.append("\n".join(res_block))
+
+        # Instructions for the LLM
+        instructions = [
+            "Use the sources above to answer the user's request as accurately as possible.",
+            "If the sources do not contain enough information to answer the query, inform the user that the provided context is insufficient instead of speculating.",
+            "Cite sources using their ID in brackets, formatted as superscripts.",
+            "Pay attention to the publication date (<date>), if available.",
+        ]
+
+        parts.append("\n<instructions>")
+        for instr in instructions:
+            parts.append(f"  <instruction>{instr}</instruction>")
+        parts.append("</instructions>")
+        
+        parts.append("</search_results>")
+            
+        return "\n".join(parts)
 
 
 # Singleton instance

@@ -20,8 +20,6 @@ dependencies = [
     "nostr>=0.0.2",
     "mdurl==0.1.2",
     "pillow>=10",
-    "newspaper3k>=0.2.8",
-    "goose3>=3.1.19",
     "trafilatura>=1.6.0",
 ]
 
