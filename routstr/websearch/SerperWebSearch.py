@@ -65,44 +65,9 @@ class SerperWebSearch(BaseWebSearch):
             # await self._save_api_response(api_response, query, "serper")
             # ---------------------------------------------------------------
 
-            # Parse the results from the API response
-            serper_result = api_response.get("organic", [])
-            parsed_results = []
-            for i, item in enumerate(serper_result):
-                if not self.is_blocked(url=item.get("link", "")):
-                    result = WebPageContent(
-                        title=item.get("title", None),
-                        url=item.get("link", "Unknown URL"),
-                        summary=item.get("snippet", None),
-                        publication_date=item.get("date", None),
-                        relevance_score=1.0 - (i * 0.1),  #  relevance based on position
-                        content=None,
-                        relevant_chunks=None,
-                    )
-                    parsed_results.append(result)
-
-            if not parsed_results:
-                logger.warning(f"No results found for query: '{query}'")
-                return SearchResult(  # TODO: just return None?
-                    query=query,
-                    results=[],
-                    summary=None,
-                    search_time_ms=int(
-                        (datetime.now() - start_time).total_seconds() * 1000
-                    ),
-                    timestamp=datetime.now(timezone.utc).isoformat(),
-                )
-
-            # Calculate search time
-            search_time = int((datetime.now() - start_time).total_seconds() * 1000)
-
-            return SearchResult(
-                query=query,
-                results=parsed_results,
-                summary=None,
-                search_time_ms=search_time,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
+            search_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            
+            return self._map_to_search_result(api_response, query, search_time_ms)
 
         except FileNotFoundError:
             error_msg = "Dummy data file not found."
@@ -119,6 +84,52 @@ class SerperWebSearch(BaseWebSearch):
         return await self.client.post(
             url="/search",
             json_data={"q": query, "num": max_results}
+        )
+    
+
+    def _map_to_search_result(
+        self, api_response: Dict[str, Any], query: str, search_time_ms: int
+    ) -> SearchResult:
+        """
+        Map Serper API response to a SearchResult object.
+        Args:
+            api_response: The raw response from Serper API
+            query: The original search query
+            search_time_ms: Time taken for the search in milliseconds
+        Returns:
+            A populated SearchResult object
+        """
+        serper_results = api_response.get("organic", [])
+        parsed_results = []
+
+        for i, item in enumerate(serper_results):
+            url = item.get("link", "Unknown URL")
+            
+            if not self.is_blocked(url=url):
+                result = WebPageContent(
+                    title=item.get("title", None),
+                    url=url,
+                    summary=item.get("snippet", None),
+                    publication_date=item.get("date", None),
+                    relevance_score=1.0 - (i * 0.1),  # Position-based relevance
+                    content=None,           # Serper organic doesn't provide full content
+                    relevant_chunks=None,    # Serper doesn't provide RAG chunks
+                )
+                parsed_results.append(result)
+
+        if not parsed_results:
+            logger.warning(f"No results found for query: '{query}'")
+
+        logger.info(
+            f"Serper search completed successfully: {len(parsed_results)} results in {search_time_ms}ms"
+        )
+
+        return SearchResult(
+            query=query,
+            results=parsed_results,
+            summary=None,  # Serper doesn't provide a generated answer in the organic endpoint
+            search_time_ms=search_time_ms,
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
 

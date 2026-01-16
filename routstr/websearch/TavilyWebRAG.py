@@ -86,8 +86,8 @@ class TavilyWebRAG(BaseWebRAG):
                 # tavily_what_is_the_state_of_the_US_jobmarket_currently_Which_websites_did_you_search_be_brief_20251223_150031.json
             )
             # ---------------------------------------------------------------
-            # api_response = await self._call_tavily_api(query, max_results)
-            # await self._save_api_response(api_response, query, "tavily")
+            #api_response = await self._call_tavily_api(query, max_results)
+            #await self._save_api_response(api_response, query, "tavily")
             # ---------------------------------------------------------------
 
             # Calculate search time
@@ -184,7 +184,7 @@ class TavilyWebRAG(BaseWebRAG):
             "auto_parameters": False,
             "country": None,
             "search_depth": "advanced",  # Use advanced to get chunks functionality
-            "include_answer": False,  # Includes a summery when set True
+            "include_answer": True,  # Includes a LLM summery when set True -> no further cost but latency
             "include_images": False,  # We don't need images for RAG
             "include_favicon": False,
             "include_raw_content": False,  # We'll use chunks instead of raw content
