@@ -131,6 +131,7 @@ class HTTPWebScrape(BaseWebScrape):
             meta_data = trafilatura.extract_metadata(
                 html, default_url=webpage.url, extensive=True
             )
+            print(meta_data)
 
             content = trafilatura.extract(
                 html,

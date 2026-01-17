@@ -3,8 +3,16 @@ from unittest.mock import MagicMock, AsyncMock, patch
 from routstr.websearch.WebManager import WebManager
 from routstr.websearch.types import RAGProvider, WebSearchProvider, WebPage, SearchResult
 from routstr.core.settings import settings
-from routstr.websearch.TavilyWebRAG import TavilyWebRAG
 import json
+
+from routstr.websearch.TavilyWebRAG import TavilyWebRAG
+from routstr.websearch.ExaWebRAG import ExaWebRAG
+from routstr.websearch.CustomRAG import CustomRAG
+from routstr.websearch.SerperWebSearch import SerperWebSearch
+from routstr.websearch.HTTPWebScrape import HTTPWebScrape
+from routstr.websearch.RecursiveChunker import RecursiveChunker
+from routstr.websearch.FixedSizeChunker import FixedSizeChunker
+from routstr.websearch.BM25WebRank import BM25WebRank
 
 @pytest.mark.asyncio
 async def test_is_rag_enabled_logic() -> None:
@@ -264,21 +272,105 @@ async def test_inject_context_general_exception() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_web_chunker_resolution() -> None:
-    """Targets the match/case blocks for chunker providers."""
+async def test_web_manager_search_factory() -> None:
+    """Targets: get_web_search_provider (Serper and Fallbacks)"""
     manager = WebManager()
-    from routstr.websearch.RecursiveChunker import RecursiveChunker
-    from routstr.websearch.FixedSizeChunker import FixedSizeChunker
     
-    # Test Recursive (Default)
+    # Test Serper
+    settings.web_search_provider = "serper"
+    settings.serper_api_key = "test_key"
+    assert isinstance(await manager.get_web_search_provider(), SerperWebSearch)
+    
+    # Test Fallback for unknown
+    manager._search_provider = None
+    settings.web_search_provider = "unsupported_search"
+    assert await manager.get_web_search_provider() is None
+
+@pytest.mark.asyncio
+async def test_web_manager_scraper_factory() -> None:
+    """Targets: get_web_scraper_provider (HTTP and Fallbacks)"""
+    manager = WebManager()
+    
+    # Test Default/None
+    assert isinstance(await manager.get_web_scraper_provider(), HTTPWebScrape)
+    
+    # Test Unknown strings fallback to HTTP
+    manager._scraper_provider = None
+    settings.web_scraper_provider = "mystery_scraper"
+    assert isinstance(await manager.get_web_scraper_provider(), HTTPWebScrape)
+
+@pytest.mark.asyncio
+async def test_web_manager_chunker_factory() -> None:
+    """Targets: get_web_chunker_provider (Recursive, Fixed, Fallbacks)"""
+    manager = WebManager()
+    
+    # Test Recursive
     settings.web_chunker_provider = "recursive"
-    chunker = await manager.get_web_chunker_provider()
-    assert isinstance(chunker, RecursiveChunker)
-    
-    # Reset for next test
-    manager._chunker_provider = None 
+    assert isinstance(await manager.get_web_chunker_provider(), RecursiveChunker)
     
     # Test Fixed
+    manager._chunker_provider = None
     settings.web_chunker_provider = "fixed"
-    chunker = await manager.get_web_chunker_provider()
-    assert isinstance(chunker, FixedSizeChunker)
+    assert isinstance(await manager.get_web_chunker_provider(), FixedSizeChunker)
+    
+    # Test Invalid fallbacks to Recursive
+    manager._chunker_provider = None
+    settings.web_chunker_provider = "invalid"
+    assert isinstance(await manager.get_web_chunker_provider(), RecursiveChunker)
+
+@pytest.mark.asyncio
+async def test_web_manager_ranker_factory() -> None:
+    """Targets: get_web_ranker_provider (BM25 and Fallbacks)"""
+    manager = WebManager()
+    
+    # Test BM25
+    settings.web_ranking_provider = "bm25"
+    assert isinstance(await manager.get_web_ranker_provider(), BM25WebRank)
+    
+    # Test fallbacks to BM25
+    manager._rank_provider = None
+    settings.web_ranking_provider = "invalid"
+    assert isinstance(await manager.get_web_ranker_provider(), BM25WebRank)
+
+@pytest.mark.asyncio
+async def test_web_manager_rag_all_in_one_factories() -> None:
+    """Targets: get_rag_provider (Tavily, Exa, Disabled)"""
+    manager = WebManager()
+    
+    # Test Tavily
+    settings.web_rag_provider = "tavily"
+    settings.tavily_api_key = "test"
+    with patch.object(TavilyWebRAG, 'check_availability', new_callable=AsyncMock) as mock:
+        mock.return_value = True
+        assert isinstance(await manager.get_rag_provider(), TavilyWebRAG)
+        
+    # Test Exa
+    manager._rag_provider = None
+    settings.web_rag_provider = "exa"
+    settings.exa_api_key = "test"
+    with patch.object(ExaWebRAG, 'check_availability', new_callable=AsyncMock) as mock:
+        mock.return_value = True
+        assert isinstance(await manager.get_rag_provider(), ExaWebRAG)
+
+    # Test Disabled
+    manager._rag_provider = None
+    settings.web_rag_provider = "disabled"
+    assert await manager.get_rag_provider() is None
+
+@pytest.mark.asyncio
+async def test_web_manager_custom_rag_factory_success() -> None:
+    """Targets: get_rag_provider (Custom RAG branch)"""
+    manager = WebManager()
+    settings.web_rag_provider = "custom"
+    
+    # Setup sub-components
+    settings.web_search_provider = "serper"
+    settings.serper_api_key = "test"
+    settings.web_scraper_provider = "http"
+    settings.web_chunker_provider = "recursive"
+    settings.web_ranking_provider = "bm25"
+    
+    with patch.object(CustomRAG, 'check_availability', new_callable=AsyncMock) as mock:
+        mock.return_value = True
+        provider = await manager.get_rag_provider()
+        assert isinstance(provider, CustomRAG)
