@@ -21,7 +21,7 @@ class BaseWebChunk(ABC):
 
     chunker_name: str = "base"
 
-    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 0) -> None:
+    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 0) -> None:
         """
         Initialize the chunker.
 

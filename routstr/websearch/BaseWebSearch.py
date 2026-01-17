@@ -22,7 +22,6 @@ class BaseWebSearch(ABC):
 
     provider_name: str = "Base"
 
-    # TODO: Only for typechecking?
     def __init__(self) -> None:
         """Initialize the base web search provider."""
         self.client_timeout: httpx.Timeout = httpx.Timeout(3.0, connect=3.0)
@@ -33,6 +32,7 @@ class BaseWebSearch(ABC):
 
         # Domain Blocklist will be used by Search provider if domain exclusion is supported
         # TODO: Unify this with BaseRAG.BLOCKED_DOMAINS?
+        # I could move it to HTTPClient
         self.EXCLUDE_DOMAINS = {
             "youtube.com",
             "youtu.be",
@@ -67,8 +67,8 @@ class BaseWebSearch(ABC):
         # Remove 'www.' if present to ensure matching
         if domain.startswith("www."):
             domain = domain[4:]
-        if domain in self.EXCLUDE_DOMAINS:
-            print(f"URL in excluded list: {url}")  # TODO: DEBUG Print
+        #if domain in self.EXCLUDE_DOMAINS:
+        #    print(f"URL in excluded list: {url}")  # TODO: DEBUG Print
         return domain in self.EXCLUDE_DOMAINS
 
     async def _load_mock_data(self, file_name: str) -> Dict[str, Any]:

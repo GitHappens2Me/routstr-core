@@ -71,13 +71,13 @@ async def calculate_cost(  # todo: can be sync
     web_search_cost_msats = 0
     if response_data.get("web_search_executed"):
         # Check for an explicitly set fixed_web_search_cost
-        if settings.fixed_web_search_cost is not None:
-            web_search_cost_msats = int(settings.fixed_web_search_cost)
+        if settings.web_search_fixed_cost is not None:
+            web_search_cost_msats = int(settings.web_search_fixed_cost)
             logger.debug(
                 f"Using fixed cost for Websearch: {web_search_cost_msats} msats"
             )
 
-        # If fixed_web_search_cost is not set, use model-specific cost.
+        # If web_search_fixed_cost is not set, use model-specific cost.
         else:
             response_model = response_data.get("model")
             if response_model:
@@ -93,7 +93,7 @@ async def calculate_cost(  # todo: can be sync
                     and model_obj.sats_pricing.web_search is not None
                 ):
                     # TODO: What unit is sats_pricing.web_search ??
-                    # Should fixed_web_search_cost follow that?
+                    # Should web_search_fixed_cost follow that?
                     web_search_cost_msats = (
                         int(model_obj.sats_pricing.web_search) * 1000
                     )

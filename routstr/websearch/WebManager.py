@@ -265,8 +265,7 @@ class WebManager:
                     from .FixedSizeChunker import FixedSizeChunker
 
                     self._chunker_provider = FixedSizeChunker(
-                        chunk_size=settings.chunk_max_size,
-                        chunk_overlap=settings.chunk_overlap,
+                        chunk_size=settings.max_chunk_size
                     )
                     return self._chunker_provider
                 except Exception as e:
@@ -275,10 +274,9 @@ class WebManager:
             case WebChunkProvider.RECURSIVE:
                 try:
                     from .RecursiveChunker import RecursiveChunker
-
+                    
                     self._chunker_provider = RecursiveChunker(
-                        chunk_size=settings.chunk_max_size,
-                        chunk_overlap=settings.chunk_overlap,
+                        chunk_size=settings.max_chunk_size
                     )
                     return self._chunker_provider
                 except Exception as e:
@@ -313,7 +311,7 @@ class WebManager:
                 try:
                     from .BM25WebRank import BM25WebRank
 
-                    self._rank_provider = BM25WebRank()
+                    self._rank_provider = BM25WebRank(max_chunks_per_source = settings.max_chunks_per_source)
                     return self._rank_provider
                 except Exception as e:
                     logger.error(f"Failed to initialize BM25WebRank: {e}")

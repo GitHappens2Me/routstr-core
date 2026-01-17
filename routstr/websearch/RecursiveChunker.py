@@ -26,9 +26,9 @@ class RecursiveChunker(BaseWebChunk):
 
     chunker_name = "recursive"
 
-    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 0) -> None:
+    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 0) -> None:
         """Initialize the recursive semantic chunker.
-
+        
         Args:
             chunk_size: Maximum size of each chunk in characters.
             chunk_overlap: Number of characters to overlap between chunks.

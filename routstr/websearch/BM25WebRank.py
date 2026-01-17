@@ -25,15 +25,23 @@ class BM25WebRank(BaseWebRank):
     BM25-based ranker that performs local-to-global pruning.
     """
 
-    def __init__(self) -> None:
-        super().__init__(provider_name="bm25")
-        self.local_k = getattr(settings, "ranker_local_top_k", 10)
-        self.global_k = getattr(settings, "ranker_global_top_k", 20)
+    def __init__(self, max_chunks_per_source: int = 5) -> None:
+        super().__init__(provider_name="bm25", max_chunks_per_source=max_chunks_per_source)
+
+        # Number of selected Chunks per Website during _rank_local
+        # This acts as an upperlimit as _rank_global removes the most irrelevant chunks
+        self.local_k = max_chunks_per_source
+
+        # Number of overall selected Chunks during _rank_global
+        # TODO: Maybe move this to a setting? 
+        self.global_k = 20
 
     async def check_availability(self) -> bool:
         """Returns True if rank_bm25 is installed and available."""
         return RANK_BM25_AVAILABLE
 
+
+    #TODO:  Add/update website relevancy scores based on the average score of the remaining chunks 
     async def rank(self, search_result: SearchResult, query: str) -> SearchResult:
         """Orchestrates the 2-step ranking process"""
         if not RANK_BM25_AVAILABLE or not search_result.webpages:

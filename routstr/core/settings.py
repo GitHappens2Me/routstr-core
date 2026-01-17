@@ -75,32 +75,22 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     enable_console_logging: bool = Field(default=True, env="ENABLE_CONSOLE_LOGGING")
 
-    # Web Search / RAG
+    ## RAG Configuration #TODO: Rename some? 
     web_rag_provider: str = Field(default="disabled", env="WEB_RAG_PROVIDER")
-    web_search_provider: str = Field(default="", env="WEB_SEARCH_PROVIDER")
-    web_scraper_provider: str = Field(default="default", env="WEB_SCRAPER_PROVIDER")
-    serper_api_key: str = Field(default="", env="SERPER_API_KEY")
     tavily_api_key: str = Field(default="", env="TAVILY_API_KEY")
     exa_api_key: str = Field(default="", env="EXA_API_KEY")
     web_search_max_results: int = Field(default=5, env="WEB_SEARCH_MAX_RESULTS")
-    web_scrape_max_concurrent_urls: int = Field(
-        default=10, env="WEB_SCRAPE_MAX_CONCURRENT_URLS"
-    )
+    web_search_fixed_cost: int = Field(default=10, env="WEB_SEARCH_FIXED_COST") 
 
-    fixed_web_search_cost: Optional[int] = Field(
-        default=None, env="FIXED_WEB_SEARCH_COST"
-    )
+    # Custom RAG (only used when web_rag_provider = "custom")
+    web_search_provider: str = Field(default="", env="WEB_SEARCH_PROVIDER")
+    serper_api_key: str = Field(default="", env="SERPER_API_KEY")
 
-    # Chunking Configuration [TODO: Remove?]
-    enable_chunking: bool = Field(default=True, env="ENABLE_CHUNKING")
-    web_chunker_provider: str = Field(
-        default="recursive", env="WEB_CHUNKER_PROVIDER"
-    )
-    chunk_max_size: int = Field(default=1000, env="CHUNK_MAX_SIZE")
-    chunk_overlap: int = Field(default=200, env="CHUNK_OVERLAP")
-    chunk_max_chunks_per_source: int = Field(
-        default=5, env="CHUNK_MAX_CHUNKS_PER_SOURCE"
-    )
+    web_scraper_provider: str = Field(default="http", env="WEB_SCRAPER_PROVIDER")
+
+    web_chunker_provider: str = Field(default="recursive", env="WEB_CHUNKER_PROVIDER")
+    max_chunk_size: int = Field(default=500, env="MAX_CHUNK_SIZE") 
+    max_chunks_per_source: int = Field(default=5, env="MAX_CHUNKS_PER_SOURCE")
     web_ranking_provider: str = Field(default="bm25", env="WEB_RANKING_PROVIDER")
 
     # Other

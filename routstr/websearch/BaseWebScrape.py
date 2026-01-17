@@ -108,7 +108,7 @@ class BaseWebScrape(ABC):
         start_time = datetime.now()
 
         scraped_pages = await self.scrape_webpages(
-            pages_to_scrape, max_concurrent=settings.web_scrape_max_concurrent_urls
+            pages_to_scrape
         )
 
         scrape_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)

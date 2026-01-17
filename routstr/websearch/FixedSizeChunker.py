@@ -19,7 +19,7 @@ class FixedSizeChunker(BaseWebChunk):
 
     chunker_name = "fixed"
 
-    def __init__(self, chunk_size: int = 100, chunk_overlap: int = 0) -> None:
+    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 25) -> None:
         """
         Initialize the fixed-size chunker.
 
