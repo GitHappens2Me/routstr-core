@@ -1,6 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict
 from enum import StrEnum
-from typing import List, Optional
+
 
 
 class RAGProvider(StrEnum):
@@ -56,4 +57,4 @@ class SearchResult:
     webpages: List[WebPage]
     summary: Optional[str] = None
     timestamp: Optional[str] = None
-    search_time_ms: Optional[int] = None
+    time_ms: Dict[str, int] = field(default_factory=dict)

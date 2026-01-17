@@ -356,6 +356,16 @@ class WebManager:
                 extracted_query, max_web_searches
             )
 
+            # Log precise timing summary
+            timings = search_result.time_ms
+            total_time = timings.get("total", "N/A")
+            details = ", ".join([f"{k}: {v}ms" for k, v in timings.items() if k != "total"])
+            detail_str = f" ({details})" if details else ""
+            
+            logger.info(
+                f"RAG [{rag_provider.provider_name}] completed in {total_time}ms{detail_str}"
+            )
+
             # Inject context into request
             enhanced_body, sources = await self._inject_web_context_into_request(
                 request_body, search_result, extracted_query

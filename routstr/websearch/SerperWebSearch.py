@@ -65,9 +65,8 @@ class SerperWebSearch(BaseWebSearch):
             # await self._save_api_response(api_response, query, "serper")
             # ---------------------------------------------------------------
 
-            search_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            
-            return self._map_to_search_result(api_response, query, search_time_ms)
+
+            return self._map_to_search_result(api_response, query)
 
         except FileNotFoundError:
             error_msg = "Dummy data file not found."
@@ -88,14 +87,13 @@ class SerperWebSearch(BaseWebSearch):
     
 
     def _map_to_search_result(
-        self, api_response: Dict[str, Any], query: str, search_time_ms: int
+        self, api_response: Dict[str, Any], query: str
     ) -> SearchResult:
         """
         Map Serper API response to a SearchResult object.
         Args:
             api_response: The raw response from Serper API
             query: The original search query
-            search_time_ms: Time taken for the search in milliseconds
         Returns:
             A populated SearchResult object
         """
@@ -121,14 +119,13 @@ class SerperWebSearch(BaseWebSearch):
             logger.warning(f"No results found for query: '{query}'")
 
         logger.info(
-            f"Serper search completed successfully: {len(parsed_results)} results in {search_time_ms}ms"
+            f"Serper search completed successfully: {len(parsed_results)} results"
         )
 
         return SearchResult(
             query=query,
             webpages=parsed_results,
             summary=None,  # Serper doesn't provide a generated answer in the organic endpoint
-            search_time_ms=search_time_ms,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
 

@@ -8,6 +8,7 @@ Offers flexibility to use different providers for each pipeline stage.
 
 from dataclasses import replace
 from datetime import datetime, timezone
+from typing import Dict
 
 from ..core.logging import get_logger
 from .BaseWebChunk import BaseWebChunk
@@ -88,11 +89,16 @@ class CustomRAG(BaseWebRAG):
         Raises:
             Exception: If any pipeline stage fails
         """
-        start_time = datetime.now()
+        pipeline_start = datetime.now()
+        timings: Dict[str, int] = {}
         logger.info(f"Starting CustomRAG pipeline for query: '{query}'")
 
         try:
+            # Search
+            stage_start = datetime.now()
             search_response = await self.search_provider.search(query, max_results)
+            timings["search"] = int((datetime.now() - stage_start).total_seconds() * 1000)
+
 
             if not search_response.webpages:
                 logger.warning(f"No search results found for query: '{query}'")
@@ -100,32 +106,38 @@ class CustomRAG(BaseWebRAG):
                     query=query,
                     webpages=[],
                     summary=None,
-                    search_time_ms=int(
-                        (datetime.now() - start_time).total_seconds() * 1000
-                    ),
+                    time_ms=timings,
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 )
+            
+            # SCRAPE
+            stage_start = datetime.now()
             search_response = await self.scraper_provider.scrape_search_results(
                 search_response
             )
+            timings["scrape"] = int((datetime.now() - stage_start).total_seconds() * 1000)
 
-            if search_response.webpages:
-                search_response = await self.chunker_provider.chunk_search_results(
-                    search_response
-                )
+            # 3. CHUNK
+            step_start = datetime.now()
+            search_response = await self.chunker_provider.chunk_search_results(search_response)
+            timings["chunk"] = int((datetime.now() - step_start).total_seconds() * 1000)
 
+            step_start = datetime.now()
             search_response = await self.rank_provider.rank(search_response, query)
+            timings["rank"] = int((datetime.now() - step_start).total_seconds() * 1000)
 
             # Calculate total pipeline time
-            search_time = int((datetime.now() - start_time).total_seconds() * 1000)
+            timings["total"] = int((datetime.now() - pipeline_start).total_seconds() * 1000)
+
             logger.info(
-                f"CustomRAG pipeline completed: {len(search_response.webpages)} results in {search_time}ms"
+                f"CustomRAG pipeline completed: {len(search_response.webpages)} results in {timings['total']}ms",
+                extra={"timing (ms)": timings}
             )
 
             # Update timing metadata and return a new object
             return replace(
                 search_response,
-                search_time_ms=search_time,
+                time_ms=timings,
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )
 

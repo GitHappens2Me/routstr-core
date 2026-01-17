@@ -53,6 +53,8 @@ class BaseWebChunk(ABC):
         """
         Chunk the content in search results concurrently and return a new SearchResult.
         """
+        if not search_result.webpages:
+            return search_result
         logger.info(
             f"Chunking content for {len(search_result.webpages)} search results concurrently"
         )

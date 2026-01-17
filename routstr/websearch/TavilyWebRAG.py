@@ -90,10 +90,9 @@ class TavilyWebRAG(BaseWebRAG):
             #await self._save_api_response(api_response, query, "tavily")
             # ---------------------------------------------------------------
 
-            # Calculate search time
-            search_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            total_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-            return self._map_to_search_result(api_response, query, search_time_ms)
+            return self._map_to_search_result(api_response, query, total_ms)
 
         except json.JSONDecodeError as e:
             error_msg = f"Failed to parse Tavily API response for query '{query}': {e}"
@@ -107,7 +106,7 @@ class TavilyWebRAG(BaseWebRAG):
             raise Exception(error_msg)
 
     def _map_to_search_result(
-        self, api_response: Dict[str, Any], query: str, search_time_ms: int
+        self, api_response: Dict[str, Any], query: str, total_ms: int
     ) -> SearchResult:
         """
         Map Tavily API response to a SearchResult object.
@@ -115,7 +114,6 @@ class TavilyWebRAG(BaseWebRAG):
         Args:
             api_response: The raw response from Tavily API
             query: The original search query
-            search_time_ms: Time taken for the search in milliseconds
 
         Returns:
             A populated SearchResult object
@@ -145,14 +143,14 @@ class TavilyWebRAG(BaseWebRAG):
             logger.warning(f"No results found for query: '{query}'")
 
         logger.info(
-            f"Tavily search completed successfully: {len(parsed_results)} results in {search_time_ms}ms"
+            f"Tavily search completed successfully: {len(parsed_results)} results"
         )
 
         return SearchResult(
             query=query,
             webpages=parsed_results,
             summary=api_response.get("answer", None),
-            search_time_ms=search_time_ms,
+            time_ms={"total": total_ms},
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
