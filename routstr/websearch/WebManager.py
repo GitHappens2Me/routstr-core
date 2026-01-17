@@ -513,10 +513,10 @@ class WebManager:
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse request body for context injection: {e}")
-            return request_body, sources
+            return request_body, {} # Return no sources on Failure
         except Exception as e:
             logger.error(f"Unexpected error during context injection: {e}")
-            return request_body, sources
+            return request_body, {} # Return no sources on Failure
 
 
 
@@ -526,7 +526,7 @@ class WebManager:
         parts.append(f"Websearch yielded {len(search_result.webpages)} results for query: '{query}'")
         
         if search_result.summary:
-            parts.append(f"Summary: {search_result.summary}")
+            parts.append(f"<search_summary>{search_result.summary}</search_summary>")
 
         for i, page in enumerate(search_result.webpages, 1):
             res_block = [f'<source id="{i}">']
@@ -536,6 +536,9 @@ class WebManager:
             if page.publication_date:
                 res_block.append(f"  <date>{page.publication_date}</date>")
             
+            if page.summary:
+                res_block.append(f" <summary>{page.summary}</summary>")
+
             if page.chunks:
                 content = " [...] ".join(page.chunks)
                 res_block.append(f"  <content> {content} </content>")
@@ -549,7 +552,7 @@ class WebManager:
         instructions = [
             "Use the sources above to answer the user's request as accurately as possible.",
             "If the sources do not contain enough information to answer the query, inform the user that the provided context is insufficient instead of speculating.",
-            "Cite sources using their ID in brackets (e.g. [1]), formatted as superscripts.",
+            "Cite sources using their ID in brackets (e.g. [1]), formatted as markdown superscript (^[1]^).",
             "Pay attention to the publication date (<date>), if available.",
         ]
 

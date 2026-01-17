@@ -57,4 +57,4 @@ class SearchResult:
     webpages: List[WebPage]
     summary: Optional[str] = None
     timestamp: Optional[str] = None
-    time_ms: Dict[str, int] = field(default_factory=dict)
+    time_ms: Optional[Dict[str, int]] = field(default_factory=dict)

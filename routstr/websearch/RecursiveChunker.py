@@ -49,6 +49,9 @@ class RecursiveChunker(BaseWebChunk):
         if not text or not text.strip():
             logger.debug("Empty text provided, returning empty chunk list")
             return []
+        
+        # Clean up multiple spaces/tabs to normalize text
+        text = re.sub(r"[ \t]+", " ", text).strip()
 
         text_length = len(text)
 
@@ -59,8 +62,6 @@ class RecursiveChunker(BaseWebChunk):
             )
             return [text]
 
-        # Clean up multiple spaces/tabs to normalize text
-        text = re.sub(r"[ \t]+", " ", text)
 
         # Define the hierarchy of separators
         separators = ["\n\n", "\n", "SENTENCE_END", " "]
@@ -158,6 +159,6 @@ class RecursiveChunker(BaseWebChunk):
             if i > 0:
                 prev_chunk = chunks[i - 1]
                 overlap_text = prev_chunk[-self.chunk_overlap :]
-                chunk = overlap_text + " " + chunk
+                chunk = overlap_text + chunk
             merged_chunks.append(chunk)
         return merged_chunks

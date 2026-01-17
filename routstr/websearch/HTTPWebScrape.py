@@ -32,7 +32,7 @@ class HTTPWebScrape(BaseWebScrape):
 
     def __init__(self) -> None:
         super().__init__()
-        self.client_timeout = httpx.Timeout(5.0, connect=3.0)
+        self.client_timeout = httpx.Timeout(3.0, connect=1.5)
         self.client_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             "Accept": "text/html, text/plain, application/xhtml+xml",
